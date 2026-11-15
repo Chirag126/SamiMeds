@@ -4,7 +4,7 @@ import globals from 'globals';
 /** Shared rules: the recommended set, plus a few that keep the code tidy. */
 const rules = {
   ...js.configs.recommended.rules,
-  'no-unused-vars': ['warn', { argsIgnorePattern: '^_', caughtErrors: 'none' }],
+  'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'none' }],
   'no-control-regex': 'off', // validate.js strips control characters on purpose
   'no-var': 'error',
   'prefer-const': 'error',

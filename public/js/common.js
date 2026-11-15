@@ -66,7 +66,6 @@ export function toast(message, { action, duration = 4000 } = {}) {
     document.body.append(toastWrap);
   }
   const node = h('div', { class: 'toast' }, h('span', {}, message));
-  let timer;
   const close = () => {
     clearTimeout(timer);
     node.remove();
@@ -75,7 +74,7 @@ export function toast(message, { action, duration = 4000 } = {}) {
     node.append(h('button', { class: 'btn btn-sm', type: 'button', onclick: () => { close(); action.run(); } }, action.label));
   }
   toastWrap.append(node);
-  timer = setTimeout(close, duration);
+  const timer = setTimeout(close, duration);
   return close;
 }
 

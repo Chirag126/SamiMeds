@@ -1,4 +1,4 @@
-import { Router, HttpError, readJson, cookie, isHttps, clientIp } from '../http.js';
+import { Router, HttpError, cookie, isHttps, clientIp } from '../http.js';
 import { config } from '../config.js';
 import { C } from '../store/index.js';
 import { v, validate } from '../services/validate.js';

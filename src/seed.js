@@ -58,7 +58,7 @@ export async function seedDemo(store, at = new Date()) {
     refillAlertSent: false, startEpoch: m.startToday ? now.epoch - 30 : startEpoch, createdAt: iso, updatedAt: iso, createdBy: 'Chirag',
   }));
   for (const m of meds) {
-    const { startToday, ...doc } = m;
+    const { startToday: _startToday, ...doc } = m;
     await store.put(C.medicines, doc);
   }
 
