@@ -1,7 +1,22 @@
 node_modules/
-.env
 data*.json
 *.tmp
 .DS_Store
 npm-debug.log*
-.env.example
+
+# ---- Secrets: never commit these ----
+# Real environment files (only the blank template .env.example is allowed)
+.env
+.env.*
+!.env.example
+*.env
+
+# Google service-account keys and other credentials
+*service-account*.json
+*-credentials.json
+credentials.json
+gcloud-key*.json
+*.pem
+*.key
+*.p12
+secrets/

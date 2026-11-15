@@ -99,7 +99,11 @@ npm test               # 50 unit + API tests (node:test, no extra packages)
 Demo circle code **`DEMO`**: Kamla (elder) `2580` · Priya (daughter) `1357` · Ravi (nurse) `2468`.
 The sign-in page also has one-tap demo buttons.
 
-Optional settings are in `.env.example` (run with `node --env-file=.env src/server.js`).
+### 🔑 Keys & secrets
+Copy `.env.example` to `.env`, fill in your values, and run `node --env-file=.env src/server.js`.
+`.env` is ignored by git. `npm install` turns on a pre-commit hook (`npm run check:secrets`) that blocks
+API keys, passwords and `.env` files, and a GitHub Action runs the same check on every PR.
+On Render, put the same names under **Environment** instead.
 
 ## ☁️ Deploy to Cloud Run
 
