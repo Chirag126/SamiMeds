@@ -3,9 +3,11 @@ import {
   resizeImage, registerServiceWorker, liveSync, pushStatus, pushCard, pickPhoto, busy,
 } from './common.js';
 import { startI18n, langButton } from './i18n.js';
+import { setupKeyboardBar } from './kbar.js';
+import { extractVisit } from './intent.js';
 
 const $ = (id) => document.getElementById(id);
-const state = { me: null, tab: 'overview', historyDays: 7, editingMed: null, editingVisit: null, photoData: null, push: 'off' };
+const state = { tabs: null, medNames: [], doctors: [], locations: [], me: null, tab: 'overview', historyDays: 7, editingMed: null, editingVisit: null, photoData: null, push: 'off' };
 const can = (p) => Boolean(state.me?.permissions?.[p]);
 const ROLE_ICON = { elderly: '👵', family: '👪', caretaker: '🧑‍⚕️' };
 const ROLE_NAME = { elderly: 'Elder', family: 'Family', caretaker: 'Caretaker' };
@@ -21,6 +23,15 @@ async function boot() {
   $('logout').addEventListener('click', logout);
 
   const tabs = setupTabs($('tablist'), { onChange: (t) => { state.tab = t; load(t); } });
+  state.tabs = tabs;
+  setupKeyboardBar({
+    providers: {
+      medicineNames: () => state.medNames, doctors: () => state.doctors, locations: () => state.locations,
+      scan: can('manageCare') ? scanPrescription : null,
+    },
+    onIntent: goToIntent,
+  });
+  refreshSuggestions();
   window.addEventListener('hashchange', () => { if (location.hash.slice(1) !== state.tab) tabs.select(location.hash.slice(1)); });
   setupMedicineDialog();
   setupVisitDialog();
@@ -34,6 +45,53 @@ function renderHeader() {
   const { circle, member } = state.me;
   $('circle-title').textContent = `${circle.elderName}'s care circle`;
   $('circle-sub').textContent = `${member.name} · ${ROLE_NAME[member.role]} · Circle code ${circle.code}`;
+}
+
+/** Removes "wrong tab" suggestions left over from earlier typing. */
+const clearHints = () => document.querySelectorAll('.intent-hint').forEach((n) => n.remove());
+
+/** Names, doctors and clinics already used in this circle, for the keyboard shortcuts. */
+async function refreshSuggestions() {
+  try {
+    const [{ medicines }, { upcoming, past }] = await Promise.all([api('/api/medicines'), api('/api/appointments')]);
+    state.medNames = [...new Set(medicines.map((m) => m.name))];
+    const visits = [...upcoming, ...past];
+    state.doctors = [...new Set(visits.map((a) => a.doctor).filter(Boolean))];
+    state.locations = [...new Set(visits.map((a) => a.location).filter(Boolean))];
+  } catch { /* suggestions are optional */ }
+}
+
+/**
+ * "Wrong tab" helper: takes the person to where their text belongs and fills in
+ * what can be understood from it.
+ */
+async function goToIntent(intent, { text }) {
+  document.querySelectorAll('dialog[open]').forEach((d) => d.close());
+  clearHints();
+  if (intent === 'visit') {
+    state.tabs.select('visits');
+    openVisit();
+    const v = extractVisit(text);
+    const form = $('visit-form');
+    if (v.doctor) form.elements.doctor.value = v.doctor;
+    if (v.specialty) form.elements.specialty.value = v.specialty;
+    if (v.date) form.elements.date.value = v.date;
+    if (v.time) form.elements.time.value = v.time;
+    form.elements.notes.value = text;
+    toast('Moved to Visits – please check the details');
+  } else if (intent === 'medicine') {
+    state.tabs.select('medicines');
+    openMedicine();
+    $('ai-text').value = text;
+    $('ai-fill').click();
+    toast('Moved to Medicines – filling the form for you');
+  } else if (intent === 'member') {
+    state.tabs.select('circle');
+    toast('Moved to Circle – add the person here');
+    setTimeout(() => document.querySelector('form[data-kind="member"] [name="name"]')?.focus(), 900);
+  } else {
+    state.tabs.select({ report: 'reports', history: 'history', alerts: 'alerts' }[intent] || 'overview');
+  }
 }
 
 /** Don't refresh under someone's fingers: skip while they are typing or a dialog is open. */
@@ -382,6 +440,7 @@ function setupMedicineDialog() {
         : await api('/api/medicines', { method: 'POST', body });
       if (state.photoData) await api(`/api/medicines/${res.medicine.id}/photo`, { method: 'PUT', body: { dataUrl: state.photoData } });
       dialog.close();
+      refreshSuggestions();
       toast(state.editingMed ? 'Medicine updated' : `${body.name} added 💊`);
       reload();
     } catch (err) {
@@ -408,6 +467,7 @@ function fillMedicineForm(m, { keepColor = false } = {}) {
 }
 
 function openMedicine(m = null) {
+  clearHints();
   state.editingMed = m;
   state.photoData = null;
   const form = $('med-form');
@@ -476,6 +536,7 @@ function setupVisitDialog() {
       if (state.editingVisit) await api(`/api/appointments/${state.editingVisit.id}`, { method: 'PUT', body });
       else await api('/api/appointments', { method: 'POST', body });
       dialog.close();
+      refreshSuggestions();
       toast(state.editingVisit ? 'Visit updated' : 'Visit booked 🩺');
       reload();
     } catch (err) {
@@ -485,6 +546,7 @@ function setupVisitDialog() {
 }
 
 function openVisit(a = null) {
+  clearHints();
   state.editingVisit = a;
   const form = $('visit-form');
   form.reset();
@@ -588,7 +650,7 @@ async function renderCircle() {
   const [{ members }, { activity }] = await Promise.all([api('/api/members'), api('/api/activity')]);
   const { circle, member } = state.me;
 
-  const memberForm = can('manageMembers') && h('form', { class: 'card', novalidate: true, onsubmit: addMember },
+  const memberForm = can('manageMembers') && h('form', { class: 'card', novalidate: true, onsubmit: addMember, dataset: { kind: 'member' } },
     h('h3', { class: 'section-title' }, '＋ Add someone to the circle'),
     h('div', { class: 'grid-2' },
       field('Name *', h('input', { name: 'name', required: true, maxlength: 60 })),
@@ -601,7 +663,7 @@ async function renderCircle() {
     h('p', { class: 'form-error', role: 'alert' }),
     h('button', { class: 'btn btn-primary', type: 'submit' }, 'Add to circle'));
 
-  const settingsForm = can('settings') && h('form', { class: 'card', novalidate: true, onsubmit: saveSettings },
+  const settingsForm = can('settings') && h('form', { class: 'card', novalidate: true, onsubmit: saveSettings, dataset: { kind: 'settings' } },
     h('h3', { class: 'section-title' }, '⚙️ Circle settings'),
     h('div', { class: 'grid-2' },
       field("Elder's name", h('input', { name: 'elderName', value: circle.elderName, maxlength: 60, required: true })),
@@ -611,7 +673,7 @@ async function renderCircle() {
     h('p', { class: 'form-error', role: 'alert' }),
     h('button', { class: 'btn btn-primary', type: 'submit' }, 'Save settings'));
 
-  const pinForm = h('form', { class: 'card', novalidate: true, onsubmit: changePin },
+  const pinForm = h('form', { class: 'card', novalidate: true, onsubmit: changePin, dataset: { kind: 'pin' } },
     h('h3', { class: 'section-title' }, '🔑 Change my PIN'),
     field('New PIN (4–6 digits)', h('input', { name: 'pin', type: 'password', inputmode: 'numeric', maxlength: 6, autocomplete: 'new-password' })),
     h('p', { class: 'form-error', role: 'alert' }),
