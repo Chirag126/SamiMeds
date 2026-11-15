@@ -1,9 +1,9 @@
 /* Offline-friendly shell: static files cache-first, API always from the network. */
-const CACHE = 'samimeds-v2';
+const CACHE = 'samimeds-v3';
 const SHELL = [
   '/', '/elder', '/family',
   '/css/base.css', '/css/login.css', '/css/elder.css', '/css/family.css',
-  '/js/common.js', '/js/i18n.js', '/js/i18n-hi.js', '/js/login.js', '/js/elder.js', '/js/family.js',
+  '/js/common.js', '/js/i18n.js', '/js/i18n-hi.js', '/js/kbar.js', '/js/intent.js', '/js/login.js', '/js/elder.js', '/js/family.js',
   '/icons/icon.svg', '/icons/icon-192.png', '/manifest.webmanifest',
 ];
 

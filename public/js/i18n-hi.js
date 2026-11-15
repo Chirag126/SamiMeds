@@ -24,6 +24,27 @@ export const EXACT = {
   'Sending the weekly summary 📧 – see the Alerts tab': 'साप्ताहिक सारांश भेजा जा रहा है 📧 – सूचनाएँ टैब देखें',
   '📧 Emails are sent through the Gmail API. Every reminder is also listed here.': '📧 ईमेल Gmail API से भेजे जाते हैं। हर रिमाइंडर यहाँ भी दिखता है।',
 
+  /* ---------- keyboard bar & wrong-tab helper */
+  'Typing shortcuts': 'टाइपिंग शॉर्टकट', 'Quick answers': 'झटपट जवाब', '▲ Prev': '▲ पिछला', '▼ Next': '▼ अगला', 'Previous box': 'पिछला खाना', 'Next box': 'अगला खाना',
+  'Speak instead of typing': 'टाइप करने के बजाय बोलें', 'Close the keyboard': 'कीबोर्ड बंद करें', '📷 Scan prescription': '📷 पर्ची स्कैन करें',
+  'This looks like a medicine.': 'यह दवा लगती है।', 'This looks like a doctor visit.': 'यह डॉक्टर से मुलाक़ात लगती है।', 'This looks like adding a person.': 'यह किसी को जोड़ना लगता है।',
+  'Looking for a report?': 'रिपोर्ट ढूँढ रहे हैं?', 'Looking for past doses?': 'पिछली खुराकें ढूँढ रहे हैं?', 'Looking for reminders sent?': 'भेजे गए रिमाइंडर ढूँढ रहे हैं?',
+  'Add it in Medicines →': 'दवाइयों में जोड़ें →', 'Book it in Visits →': 'मुलाक़ातों में तय करें →', 'Go to Circle →': 'सर्कल पर जाएँ →',
+  'Open Reports →': 'रिपोर्ट खोलें →', 'Open History →': 'इतिहास खोलें →', 'Open Alerts →': 'सूचनाएँ खोलें →', 'Hide this suggestion': 'यह सुझाव छिपाएँ',
+  'Moved to Visits – please check the details': 'मुलाक़ातों पर आ गए – कृपया जानकारी जाँच लें', 'Moved to Medicines – filling the form for you': 'दवाइयों पर आ गए – फ़ॉर्म भरा जा रहा है',
+  'Moved to Circle – add the person here': 'सर्कल पर आ गए – यहाँ व्यक्ति जोड़ें',
+  'In 3 days': '3 दिन में', 'Next week': 'अगले हफ़्ते', 'In 2 weeks': '2 हफ़्ते में', 'Heart': 'दिल', 'Sugar': 'शुगर', 'Eye': 'आँख', 'Bones': 'हड्डी', 'Nerves': 'नसें', 'Teeth': 'दाँत', 'Skin': 'त्वचा',
+  'Old reports': 'पुरानी रिपोर्ट', 'BP diary': 'BP डायरी', 'Sugar diary': 'शुगर डायरी', 'Medicine list': 'दवाइयों की सूची', 'Reading glasses': 'पढ़ने का चश्मा', 'ID card': 'पहचान पत्र', 'Insurance card': 'बीमा कार्ड',
+  'Routine check-up': 'नियमित जाँच', 'Follow-up': 'दोबारा दिखाना', 'Fasting – no breakfast': 'खाली पेट – नाश्ता नहीं', 'Bring fasting sugar report': 'खाली पेट शुगर रिपोर्ट लाएँ',
+  'Daughter-in-law': 'बहू', 'Son-in-law': 'दामाद', 'Grandson': 'पोता', 'Granddaughter': 'पोती', 'Neighbour': 'पड़ोसी',
+  /* standard instructions – also translated on the elder's screen */
+  'after breakfast': 'नाश्ते के बाद', 'before breakfast': 'नाश्ते से पहले', 'after lunch': 'दोपहर के खाने के बाद', 'after dinner': 'रात के खाने के बाद',
+  'at bedtime': 'सोने से पहले', 'after food': 'खाने के बाद', 'before food': 'खाने से पहले', 'with water': 'पानी के साथ', 'empty stomach': 'खाली पेट',
+  'once daily': 'दिन में एक बार', 'twice a day': 'दिन में दो बार', 'three times a day': 'दिन में तीन बार', '30 tablets': '30 गोलियाँ',
+  'For blood pressure': 'ब्लड प्रेशर के लिए', 'For sugar (diabetes)': 'शुगर (डायबिटीज़) के लिए', 'For heart': 'दिल के लिए', 'For cholesterol': 'कोलेस्ट्रॉल के लिए',
+  'For thyroid': 'थायरॉइड के लिए', 'For pain': 'दर्द के लिए', 'For acidity': 'एसिडिटी के लिए', 'For strong bones': 'मज़बूत हड्डियों के लिए', 'For sleep': 'नींद के लिए', 'Vitamin': 'विटामिन',
+  '1 tablet': '1 गोली', '½ tablet': 'आधी गोली', '2 tablets': '2 गोलियाँ', '1 capsule': '1 कैप्सूल', '1 drop in each eye': 'हर आँख में 1 बूँद', '1 puff': '1 पफ़',
+
   /* ---------- notifications card */
   '🔔 Notifications on this phone': '🔔 इस फ़ोन पर सूचनाएँ',
   'This browser cannot show notifications. On iPhone, first add SamiMeds to the Home Screen.': 'यह ब्राउज़र सूचनाएँ नहीं दिखा सकता। iPhone पर पहले SamiMeds को होम स्क्रीन पर जोड़ें।',
@@ -184,7 +205,7 @@ export const PATTERNS = [
 
   /* elder */
   ['💬 {name}', '💬 {name}'], ['In {n} min', '{n} मिनट में'], ['{n} min ago', '{n} मिनट पहले'], ['{h} h {m} min late', '{h} घंटे {m} मिनट देर'], ['In {n} days', '{n} दिन में'],
-  ['Take {what}', '{what} लें'], ['🍽️ {how}', '🍽️ {how}'], ["⏰ I'll remind you soon about {name}.", '⏰ {name} के लिए थोड़ी देर में याद दिलाऊँगी।'],
+  ['Take {what}', '{what} लें'], ['🍽️ {how}', '🍽️ {how}'], ['💜 {why}', '💜 {why}'], ["⏰ I'll remind you soon about {name}.", '⏰ {name} के लिए थोड़ी देर में याद दिलाऊँगी।'],
   ['Next: {time} – {name}', 'अगली: {time} – {name}'], ['{a} of {b} taken today', 'आज {b} में से {a} ली गईं'], ['{a} of {b} medicines taken today', 'आज {b} में से {a} दवाइयाँ ली गईं'],
   ['🌟 {n} day in a row', '🌟 लगातार {n} दिन'], ['🌟 {n} days in a row', '🌟 लगातार {n} दिन'],
   ['Wonderful! {name} marked as taken ✅', 'बहुत बढ़िया! {name} ली गई दर्ज हुई ✅'], ["Okay! I'll remind you in {n} minutes ⏰", 'ठीक है! {n} मिनट में याद दिलाऊँगी ⏰'],

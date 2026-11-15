@@ -35,6 +35,8 @@ Each person signs in with the **care circle code + their own 4–6 digit PIN**, 
 - **Photo proof.** The elder can tap *"I took it – send a photo"*. Family sees the photo and taps **Looks right** or **Not right**; the caretaker sees the result. Only family can verify.
 - **Prescription scan.** Take a photo of the doctor's slip; Gemini lists the medicines and the family adds them after checking each one.
 - **English ⇄ हिंदी** switch on the sign-in, elder and family screens. Read aloud speaks Hindi too.
+- **Keyboard shortcut bar (phones).** Above the keyboard: ready answers for the box being typed in (500 mg, after breakfast, 9 PM, Tomorrow, BP diary, +91, @gmail.com…), Prev / Next, 🎤 speak, and Done. It never covers the box being typed in or the Save button.
+- **Wrong-tab helper.** Typing a doctor visit into the medicine form (or a medicine into a visit) shows a small note under the box with a button that takes you to the right tab and fills in what it understood.
 - **Phone notifications (Web Push).** Reminders, missed-dose alerts, "took it", photo and verification updates arrive even when the app is closed.
 
 ### Elder's screen (mobile-first)

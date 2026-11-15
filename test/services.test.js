@@ -243,3 +243,43 @@ test('Gmail: refreshes the token once, then sends with it', async () => {
     gmail.resetGmailToken();
   }
 });
+
+/* ---------- keyboard bar & "wrong tab" helper ---------- */
+test('intent: recognises medicines, visits and people; ignores normal typing', async () => {
+  const { detectIntent, wrongPlace } = await import('../public/js/intent.js');
+  assert.equal(detectIntent('Metformin 500mg twice a day'), 'medicine');
+  assert.equal(detectIntent('Dr. Rao tomorrow 11am'), 'visit');
+  assert.equal(detectIntent('cardiology check-up on monday'), 'visit');
+  assert.equal(detectIntent('add Meera as nurse'), 'member');
+  assert.equal(detectIntent('Amlodipine'), null);
+  assert.equal(detectIntent('hi'), null);
+  // only flags text typed in the wrong place
+  assert.equal(wrongPlace('medicine:ai', 'Dr. Sharma appointment tomorrow 10am'), 'visit');
+  assert.equal(wrongPlace('medicine:ai', 'Metformin 500mg twice a day'), null);
+  assert.equal(wrongPlace('visit:doctor', 'Paracetamol 650 mg tds'), 'medicine');
+  assert.equal(wrongPlace('visit:notes', 'continue Metformin 500 mg'), null);
+  assert.equal(wrongPlace('member:pin', 'Dr. Rao tomorrow'), null);
+});
+
+test('intent: pulls doctor, date, time and specialty from text', async () => {
+  const { extractVisit } = await import('../public/js/intent.js');
+  const now = new Date(2026, 10, 15, 10, 0); // Sunday 15 Nov 2026
+  assert.deepEqual(extractVisit('Dr. rao tomorrow 11am for heart', now), { doctor: 'Dr. Rao', time: '11:00', date: '2026-11-16', specialty: 'Cardiology' });
+  assert.deepEqual(extractVisit('eye checkup friday 4:30 pm', now), { time: '16:30', date: '2026-11-20', specialty: 'Ophthalmology' });
+  assert.equal(extractVisit('dr mehta next week', now).date, '2026-11-22');
+  assert.equal(extractVisit('Dr. Iyer on sunday', now).date, '2026-11-22');
+});
+
+test('keyboard bar: each chip type fills the box correctly', async () => {
+  const { applyChip } = await import('../public/js/kbar.js');
+  assert.equal(applyChip('', { mode: 'replace', value: '500 mg' }), '500 mg');
+  assert.equal(applyChip('after breakfast', { mode: 'append', sep: ', ', value: 'with water' }), 'after breakfast, with water');
+  assert.equal(applyChip('after breakfast', { mode: 'append', sep: ', ', value: 'after breakfast' }), 'after breakfast');
+  assert.equal(applyChip('Old reports', { mode: 'line', value: 'BP diary' }), 'Old reports\nBP diary');
+  assert.equal(applyChip('9876543210', { mode: 'prefix', value: '+91' }), '+919876543210');
+  assert.equal(applyChip('09876543210', { mode: 'prefix', value: '+91' }), '+919876543210');
+  assert.equal(applyChip('chirag', { mode: 'suffix', value: '@gmail.com' }), 'chirag@gmail.com');
+  assert.equal(applyChip('chirag@yahoo.com', { mode: 'suffix', value: '@gmail.com' }), 'chirag@gmail.com');
+  assert.equal(applyChip('', { mode: 'start', value: 'Dr. ' }), 'Dr. ');
+  assert.equal(applyChip('Dr. Rao', { mode: 'start', value: 'Dr. ' }), 'Dr. Rao');
+});

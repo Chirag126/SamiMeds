@@ -156,3 +156,39 @@ dialog::backdrop { background: rgba(43, 33, 24, 0.45); backdrop-filter: blur(2px
 .push-card { background: #fff; border-radius: 20px; padding: 16px; box-shadow: var(--shadow-sm); display: grid; gap: 10px; }
 .push-card h3 { font-size: 1.05rem; }
 .push-card .row-btns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+
+/* ---------- keyboard shortcut bar (phones) */
+.kbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 70;
+  background: #fbf6ef; border-top: 1px solid var(--line); box-shadow: 0 -6px 18px -12px rgba(80, 50, 20, 0.45);
+  padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); display: grid; gap: 6px;
+}
+.kbar-chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; overscroll-behavior: contain; padding: 2px 0; }
+.kbar-chips::-webkit-scrollbar { display: none; }
+.kbar-chip {
+  flex: none; font: inherit; font-size: 0.92rem; font-weight: 700; min-height: 40px; padding: 6px 14px; border-radius: 999px;
+  border: 1.5px solid #e2cfb8; background: #fff; color: var(--ink); cursor: pointer; touch-action: manipulation;
+}
+.kbar-chip:active { background: var(--green-soft); border-color: #a6dcb9; }
+.kbar-action { background: var(--blue-soft); color: var(--blue); border-color: transparent; }
+.kbar-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.kbar-nav { display: flex; gap: 6px; }
+.kbar-btn {
+  font: inherit; font-size: 0.85rem; font-weight: 800; min-height: 38px; min-width: 44px; padding: 4px 12px; border-radius: 12px;
+  border: 1px solid var(--line); background: #fff; color: var(--ink); cursor: pointer; touch-action: manipulation;
+}
+.kbar-row > .kbar-btn { background: var(--green); color: #fff; border-color: var(--green); min-width: 76px; }
+.kbar-btn.listening { background: var(--rose-soft); border-color: #f2a08f; animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 50% { transform: scale(1.08); } }
+/* Leave room so the bar never hides the last boxes or the Save button. */
+html.kbar-open body { padding-bottom: var(--kbar-space, 110px); }
+html.kbar-open dialog { max-height: calc(100dvh - 12px); }
+/* In a form, the space goes under the Save button, so scrolling down always shows it above the bar. */
+html.kbar-open dialog .dialog-foot { position: static; padding-bottom: calc(14px + var(--kbar-space, 110px)); }
+
+/* ---------- "wrong tab" helper (in the page flow – never covers anything) */
+.intent-hint {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: -6px 0 14px; padding: 10px 12px;
+  background: var(--amber-bg); color: #6b3504; border-radius: 14px; font-weight: 700; animation: toast-in 0.2s ease;
+}
+.intent-hint span { flex: 1 1 180px; }
