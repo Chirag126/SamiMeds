@@ -1,0 +1,138 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { parseMedicineText } from '../src/services/parser.js';
+import { daysLeft, needsRefill, adjustStock } from '../src/services/refill.js';
+import { evaluateAppointment, plainSpecialty } from '../src/services/appointments.js';
+import { googleCalendarLink } from '../src/services/calendar.js';
+import { localParts, localEpoch, addDays, formatTime12 } from '../src/services/time.js';
+import { hashPin, verifyPin, isWeakPin, newCircleCode, RateLimiter } from '../src/services/auth.js';
+import { v, validate, ValidationError } from '../src/services/validate.js';
+import { sanitizeParsed } from '../src/services/gemini.js';
+import { decodeDataUrl } from '../src/services/photos.js';
+
+/* parser */
+test('parses a once-daily description', () => {
+  const r = parseMedicineText('Amlodipine 5mg once daily after breakfast');
+  assert.equal(r.name, 'Amlodipine');
+  assert.equal(r.dose, '5 mg');
+  assert.deepEqual(r.times, ['09:00']);
+  assert.equal(r.instructions, 'after breakfast');
+});
+
+test('parses twice a day with pack size and pills per dose', () => {
+  const r = parseMedicineText('Metformin 500 mg 1 tablet twice a day after meals, 60 tablets');
+  assert.deepEqual(r.times, ['09:00', '21:00']);
+  assert.equal(r.stock, 60);
+  assert.equal(r.pillsPerDose, 1);
+});
+
+test('understands medical shorthand and explicit times', () => {
+  assert.equal(parseMedicineText('Paracetamol 650 mg TDS').times.length, 3);
+  assert.deepEqual(parseMedicineText('Thyroxine 50 mcg at 6:30 am').times, ['06:30']);
+  assert.deepEqual(parseMedicineText('Atorvastatin 10mg at night').times, ['21:30']);
+});
+
+/* refill */
+test('refill maths', () => {
+  const m = { active: true, stock: 10, pillsPerDose: 1, times: ['08:00', '20:00'], refillThresholdDays: 5 };
+  assert.equal(daysLeft(m), 5);
+  assert.equal(needsRefill(m), true);
+  assert.equal(needsRefill({ ...m, stock: 40 }), false);
+  assert.equal(daysLeft({ ...m, stock: null }), null);
+  assert.equal(adjustStock(m, -1).stock, 9);
+  assert.equal(adjustStock({ ...m, stock: 0 }, -1).stock, 0);
+  assert.equal(adjustStock({ ...m, stock: 30, refillAlertSent: true }, 1).refillAlertSent, false);
+});
+
+/* appointments */
+test('appointment reminders: day before, then morning, never after', () => {
+  const appt = { status: 'upcoming', date: '2026-01-11', time: '11:00', dayBeforeSent: false, morningSent: false };
+  assert.deepEqual(evaluateAppointment(appt, localEpoch('2026-01-10', '09:00')).actions, []);
+  assert.deepEqual(evaluateAppointment(appt, localEpoch('2026-01-10', '12:00')).actions, ['day-before']);
+  assert.deepEqual(evaluateAppointment({ ...appt, dayBeforeSent: true }, localEpoch('2026-01-11', '07:05')).actions, ['morning']);
+  assert.deepEqual(evaluateAppointment(appt, localEpoch('2026-01-11', '12:00')).actions, []);
+  assert.deepEqual(evaluateAppointment({ ...appt, status: 'cancelled' }, localEpoch('2026-01-10', '12:00')).actions, []);
+});
+
+test('early appointment gets its morning reminder 2h before', () => {
+  const appt = { status: 'upcoming', date: '2026-01-11', time: '08:00', dayBeforeSent: true, morningSent: false };
+  assert.deepEqual(evaluateAppointment(appt, localEpoch('2026-01-11', '05:59')).actions, []);
+  assert.deepEqual(evaluateAppointment(appt, localEpoch('2026-01-11', '06:00')).actions, ['morning']);
+});
+
+test('plain-language specialties', () => {
+  assert.equal(plainSpecialty('Cardiology'), 'Heart doctor');
+  assert.equal(plainSpecialty('Podiatry'), 'Podiatry');
+});
+
+test('Google Calendar link carries date, timezone and checklist', () => {
+  const url = new URL(googleCalendarLink({ doctor: 'Dr. Sharma', date: '2026-01-11', time: '11:00', checklist: ['BP diary'] }, 'Asia/Kolkata'));
+  assert.equal(url.hostname, 'calendar.google.com');
+  assert.equal(url.searchParams.get('dates'), '20260111T110000/20260111T120000');
+  assert.equal(url.searchParams.get('ctz'), 'Asia/Kolkata');
+  assert.match(url.searchParams.get('details'), /BP diary/);
+});
+
+/* time */
+test('timezone conversion', () => {
+  const p = localParts(new Date('2026-01-10T03:00:00Z'), 'Asia/Kolkata');
+  assert.equal(p.date, '2026-01-10');
+  assert.equal(p.minutes, 8 * 60 + 30);
+  assert.equal(addDays('2026-01-31', 1), '2026-02-01');
+  assert.equal(formatTime12('00:05'), '12:05 AM');
+  assert.equal(formatTime12('21:30'), '9:30 PM');
+});
+
+/* auth */
+test('PIN hashing round-trip', async () => {
+  const hash = await hashPin('4826');
+  assert.match(hash, /^scrypt\$/);
+  assert.equal(await verifyPin('4826', hash), true);
+  assert.equal(await verifyPin('4827', hash), false);
+  assert.equal(await verifyPin('4826', 'garbage'), false);
+});
+
+test('weak PINs are rejected', () => {
+  for (const p of ['1111', '1234', '987654', '000000']) assert.equal(isWeakPin(p), true, p);
+  for (const p of ['4826', '1947', '2580']) assert.equal(isWeakPin(p), false, p);
+});
+
+test('circle codes avoid confusing characters', () => {
+  for (let i = 0; i < 50; i += 1) assert.match(newCircleCode(), /^[A-HJKMNP-Z2-9]{6}$/);
+});
+
+test('rate limiter', () => {
+  const rl = new RateLimiter({ limit: 2, windowMs: 1000 });
+  assert.equal(rl.allow('a', 0), true);
+  assert.equal(rl.allow('a', 1), true);
+  assert.equal(rl.allow('a', 2), false);
+  assert.equal(rl.allow('a', 2000), true);
+});
+
+/* validation */
+test('validation cleans and rejects input', () => {
+  const schema = { name: v.string({ min: 1, max: 5 }), t: v.time(), e: v.email({ optional: true }) };
+  assert.deepEqual(validate(schema, { name: ' Ab ', t: '08:00', e: '' }), { name: 'Ab', t: '08:00', e: '' });
+  assert.throws(() => validate(schema, { name: 'toolong', t: '08:00' }), ValidationError);
+  assert.throws(() => validate(schema, { name: 'a', t: '25:00' }), /time/);
+  assert.throws(() => validate(schema, { name: 'a', t: '08:00', e: 'nope' }), /email/);
+  assert.throws(() => validate(schema, []), /JSON object/);
+  assert.deepEqual(validate(schema, { t: '09:00' }, { partial: true }), { t: '09:00' });
+});
+
+/* AI output is never trusted blindly */
+test('Gemini output is sanitised', () => {
+  const fallback = parseMedicineText('Aspirin 75 mg once daily');
+  const r = sanitizeParsed({ name: 'Aspirin', times: ['9am', '08:00', '25:00'], pillsPerDose: 99, stock: -3 }, fallback);
+  assert.deepEqual(r.times, ['08:00']);
+  assert.equal(r.pillsPerDose, fallback.pillsPerDose);
+  assert.equal(r.stock, fallback.stock);
+});
+
+/* photos */
+test('photo upload checks type and magic bytes', () => {
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 0, 0, 0, 0, 0, 0, 0]).toString('base64');
+  assert.equal(decodeDataUrl(`data:image/png;base64,${png}`).contentType, 'image/png');
+  assert.throws(() => decodeDataUrl(`data:image/png;base64,${Buffer.from('<svg>hi</svg>').toString('base64')}`), /valid image/);
+  assert.throws(() => decodeDataUrl('data:image/svg+xml;base64,AAAA'), /JPEG, PNG or WebP/);
+});

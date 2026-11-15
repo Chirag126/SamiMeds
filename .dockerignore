@@ -1,0 +1,9 @@
+node_modules
+npm-debug.log
+.git
+.env
+*.json.tmp
+data*.json
+test
+deploy
+README.md
