@@ -50,7 +50,12 @@ export const config = Object.freeze({
   geminiApiKey: env.GEMINI_API_KEY || '',
   geminiModel: env.GEMINI_MODEL || 'gemini-2.5-flash',
 
-  photoBucket: env.PHOTO_BUCKET || '',
+  /** Web Push (phone notifications). Generate keys with: npm run push:keys */
+  vapid: {
+    publicKey: env.VAPID_PUBLIC_KEY || '',
+    privateKey: env.VAPID_PRIVATE_KEY || '',
+    subject: env.VAPID_SUBJECT || 'mailto:samimeds@example.com',
+  },
 
   smtp: {
     host: env.SMTP_HOST || '',

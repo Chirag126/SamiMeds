@@ -1,8 +1,10 @@
 import {
   api, h, mount, toast, speak, canSpeak, buzz, setupTabs, medicineVisual, relativeDay, MOODS, registerServiceWorker,
+  liveSync, pushStatus, pushCard, pickPhoto,
 } from './common.js';
+import { startI18n, langButton, tr } from './i18n.js';
 
-const state = { me: null, today: null, moods: [], tab: 'now', rate: 0.9 };
+const state = { me: null, today: null, moods: [], tab: 'now', rate: 0.9, push: 'off' };
 const $ = (id) => document.getElementById(id);
 const prefs = {
   get: (k, d) => { try { return localStorage.getItem(k) ?? d; } catch { return d; } },
@@ -13,6 +15,8 @@ const prefs = {
 
 async function boot() {
   registerServiceWorker();
+  startI18n();
+  $('size-btn').before(langButton({ compact: true, className: 'round-btn lang-btn' }));
   applySize(prefs.get('sm_size', 'normal'));
   state.rate = Number(prefs.get('sm_rate', '0.9'));
 
@@ -26,6 +30,8 @@ async function boot() {
   if (!canSpeak()) $('speak-all').hidden = true;
 
   await refresh();
+  liveSync(refresh); // changes made by family show up here straight away
+  pushStatus().then((st) => { state.push = st; if (state.tab === 'help') render(); });
   setInterval(refresh, 60_000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
 }
@@ -94,10 +100,10 @@ function whenLabel(dose) {
 function doseSpeech(dose) {
   const m = dose.medicine;
   return [
-    `At ${dose.time12}, please take ${m.pillDescription || 'your medicine'}.`,
+    tr(`At ${dose.time12}, please take ${m.pillDescription || 'your medicine'}.`),
     `${m.name}${m.dose ? `, ${m.dose}` : ''}.`,
     m.purpose ? `${m.purpose}.` : '',
-    m.instructions ? `Remember: ${m.instructions}.` : '',
+    m.instructions ? tr(`Remember: ${m.instructions}.`) : '',
   ].join(' ');
 }
 
@@ -124,6 +130,7 @@ function renderNow() {
       late && h('p', { class: 'calm-next' }, "It's a little late, but you can still take it."),
       h('div', { class: 'due-actions' },
         h('button', { class: 'btn btn-primary big-btn', type: 'button', onclick: () => take(d) }, '✅ I took it'),
+        h('button', { class: 'btn btn-soft big-btn photo-btn', type: 'button', onclick: () => takeWithPhoto(d) }, '📷 I took it – send a photo to family'),
         h('div', { class: 'row-btns' },
           d.snoozeCount < 3 && d.status === 'pending'
             ? h('button', { class: 'btn btn-amber big-btn', type: 'button', onclick: () => snooze(d) }, '⏰ Remind me in 15 min')
@@ -195,7 +202,12 @@ function doseRow(d) {
       h('span', { class: 'when' }, `${d.time12} · ${d.medicine.pillDescription || ''}`)),
     canTakeHere
       ? h('button', { class: 'btn btn-primary btn-sm', type: 'button', onclick: () => take(d), 'aria-label': `I took ${d.medicine.name}` }, '✅ Took it')
-      : h('span', { class: `chip ${chip[0]}` }, chip[1]));
+      : h('span', { class: 'row-chips' },
+        h('span', { class: `chip ${chip[0]}` }, chip[1]),
+        d.proof?.status === 'pending' && h('span', { class: 'chip chip-blue' }, '📷 Photo sent'),
+        d.proof?.status === 'verified' && h('span', { class: 'chip chip-green' }, '👍 Family saw your photo'),
+        d.status === 'taken' && !d.proof && d.elapsed < 180 &&
+          h('button', { class: 'btn btn-sm', type: 'button', 'aria-label': `Send a photo for ${d.medicine.name}`, onclick: () => takeWithPhoto(d) }, '📷 Send photo')));
 }
 
 function updateCard(u) {
@@ -218,6 +230,21 @@ async function take(dose) {
       duration: 8000,
       action: { label: 'Undo', run: () => undo(dose) },
     });
+    await refresh();
+  } catch (err) {
+    toast(err.message);
+  }
+}
+
+/** The elder takes a photo with the medicine; family checks it and the caretaker sees the result. */
+async function takeWithPhoto(dose) {
+  try {
+    const dataUrl = await pickPhoto({ capture: 'user' });
+    if (!dataUrl) return;
+    buzz(40);
+    await api(`/api/doses/${encodeURIComponent(dose.id)}/proof`, { method: 'PUT', body: { dataUrl } });
+    confetti();
+    toast('Photo sent to your family 📷');
     await refresh();
   } catch (err) {
     toast(err.message);
@@ -282,7 +309,11 @@ function renderVisits() {
     return;
   }
   const [a, ...rest] = appts;
-  const speech = `${relativeDay(a.date, state.today.date)} at ${a.time12}, you will visit ${a.doctor}${a.plainSpecialty ? `, the ${a.plainSpecialty}` : ''}. ${a.location ? `At ${a.location}.` : ''} ${a.checklist.length ? `Please bring: ${a.checklist.join(', ')}.` : ''}`;
+  const speech = [
+    tr(`Your next doctor visit is ${relativeDay(a.date, state.today.date)} at ${a.time12} with ${a.doctor}.`),
+    a.location ? tr(`At ${a.location}.`) : '',
+    a.checklist.length ? tr(`Please bring: ${a.checklist.join(', ')}.`) : '',
+  ].join(' ');
   mount($('panel-visits'),
     h('article', { class: 'visit-card', 'aria-labelledby': 'visit-title' },
       h('p', { class: 'visit-day' }, `🗓️ ${relativeDay(a.date, state.today.date)}, ${a.time12}`),
@@ -406,12 +437,13 @@ function renderHelp() {
             class: `btn ${cls}`, type: 'button', 'aria-pressed': String(size === key), 'aria-label': `${name} text`,
             onclick: () => { applySize(key); prefs.set('sm_size', key); renderHelp(); },
           }, label)))),
+    pushCard(state.push, async () => { state.push = await pushStatus(); renderHelp(); }),
     canSpeak() && h('section', { class: 'setting' },
       h('h3', {}, 'Reading voice speed'),
       h('div', { class: 'row-btns' },
         [['0.75', '🐢 Slower'], ['0.9', '🙂 Normal']].map(([rate, label]) => h('button', {
           class: 'btn', type: 'button', 'aria-pressed': String(String(state.rate) === rate),
-          onclick: () => { state.rate = Number(rate); prefs.set('sm_rate', rate); speak('This is how I will read to you.', { rate: state.rate }); renderHelp(); },
+          onclick: () => { state.rate = Number(rate); prefs.set('sm_rate', rate); speak(tr('This is how I will read to you.'), { rate: state.rate }); renderHelp(); },
         }, label)))),
     h('div', { class: 'small-links' },
       h('a', { class: 'btn btn-ghost btn-sm', href: '/family' }, '📋 Full details'),
@@ -426,17 +458,21 @@ async function logout() {
 /* ------------------------------------------------------------ read whole screen */
 
 function screenSpeech() {
+  return screenSpeechParts().map(tr).join(' ');
+}
+
+function screenSpeechParts() {
   const t = state.today;
   if (state.tab === 'now') {
-    if (t.now) return doseSpeech(t.now);
-    return `You have taken ${t.progress.taken} of ${t.progress.total} medicines today. ${t.next ? `Next is ${t.next.medicine.name} at ${t.next.time12}.` : ''}`;
+    if (t.now) return [doseSpeech(t.now)];
+    return [`You have taken ${t.progress.taken} of ${t.progress.total} medicines today.`, t.next ? `Next is ${t.next.medicine.name} at ${t.next.time12}.` : ''];
   }
   if (state.tab === 'visits') {
     const a = t.appointments[0];
-    return a ? `Your next doctor visit is ${relativeDay(a.date, t.date)} at ${a.time12} with ${a.doctor}.` : 'No doctor visits are booked.';
+    return [a ? `Your next doctor visit is ${relativeDay(a.date, t.date)} at ${a.time12} with ${a.doctor}.` : 'No doctor visits are booked.'];
   }
-  if (state.tab === 'day') return 'How are you feeling today? Tap good, okay, or not well.';
-  return 'Tap the big red button to call your family.';
+  if (state.tab === 'day') return ['How are you feeling today? Tap good, okay, or not well.'];
+  return ['Tap the big red button to call your family.'];
 }
 
 boot();

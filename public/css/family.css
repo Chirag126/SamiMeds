@@ -148,3 +148,11 @@ tbody tr:last-child td { border-bottom: 0; }
   .row { grid-template-columns: auto 1fr; }
   .row-actions { grid-column: 1 / -1; justify-content: flex-start; }
 }
+
+.proof-card { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 14px; align-items: center; background: var(--blue-soft); border-radius: 18px; padding: 12px; }
+.proof-card img { width: 96px; height: 96px; object-fit: cover; border-radius: 14px; background: #fff; }
+.proof-card b, .proof-card small { display: block; }
+.proof-card .med-actions { margin-top: 8px; }
+.scan-row { grid-template-columns: auto minmax(0, 1fr); }
+.scan-row .row-actions { grid-column: 1 / -1; justify-content: flex-start; }
+.scan-icon { font-size: 1.6rem; }

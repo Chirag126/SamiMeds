@@ -93,8 +93,11 @@ export function speak(text, { rate = 0.9 } = {}) {
   const u = new SpeechSynthesisUtterance(text);
   u.rate = rate;
   const voices = window.speechSynthesis.getVoices();
-  u.voice = voices.find((v) => v.lang === 'en-IN') || voices.find((v) => v.lang.startsWith('en')) || null;
-  u.lang = u.voice?.lang || 'en-IN';
+  const hindi = document.documentElement.lang === 'hi';
+  u.voice = (hindi
+    ? voices.find((v) => v.lang === 'hi-IN') || voices.find((v) => v.lang.startsWith('hi'))
+    : voices.find((v) => v.lang === 'en-IN') || voices.find((v) => v.lang.startsWith('en'))) || null;
+  u.lang = u.voice?.lang || (hindi ? 'hi-IN' : 'en-IN');
   window.speechSynthesis.speak(u);
 }
 
@@ -270,5 +273,96 @@ export function resizeImage(file, max = 480, quality = 0.8) {
       reject(new Error('Could not read that photo'));
     };
     img.src = url;
+  });
+}
+
+/* ---------- live sync: refresh when anyone in the circle changes something */
+export function liveSync(onChange) {
+  if (!('EventSource' in window)) return null;
+  let timer;
+  const source = new EventSource('/api/events');
+  source.addEventListener('change', () => {
+    clearTimeout(timer);
+    timer = setTimeout(onChange, 250); // several quick changes → one refresh
+  });
+  return source;
+}
+
+/* ---------- phone notifications (Web Push) */
+const b64ToBytes = (b64) => Uint8Array.from(atob(b64.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+
+/** 'unsupported' | 'unavailable' (server has no keys) | 'denied' | 'on' | 'off' */
+export async function pushStatus() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return 'unsupported';
+  const { enabled } = await api('/api/push/key').catch(() => ({ enabled: false }));
+  if (!enabled) return 'unavailable';
+  if (Notification.permission === 'denied') return 'denied';
+  const reg = await navigator.serviceWorker.getRegistration();
+  const sub = await reg?.pushManager.getSubscription();
+  return sub && Notification.permission === 'granted' ? 'on' : 'off';
+}
+
+export async function enablePush() {
+  const permission = await Notification.requestPermission();
+  if (permission !== 'granted') throw new Error('Notifications were not allowed. You can allow them in your browser settings.');
+  const { publicKey } = await api('/api/push/key');
+  const reg = await navigator.serviceWorker.ready;
+  const sub = (await reg.pushManager.getSubscription()) ||
+    (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(publicKey) }));
+  await api('/api/push/subscribe', { method: 'POST', body: { subscription: sub.toJSON() } });
+  await api('/api/push/test', { method: 'POST', body: {} });
+}
+
+export async function disablePush() {
+  const reg = await navigator.serviceWorker.getRegistration();
+  const sub = await reg?.pushManager.getSubscription();
+  if (!sub) return;
+  await api('/api/push/unsubscribe', { method: 'POST', body: { endpoint: sub.endpoint } }).catch(() => {});
+  await sub.unsubscribe();
+}
+
+/**
+ * A small settings card to turn phone notifications on or off.
+ * `rerender` is called after a change so the card shows the new state.
+ */
+export function pushCard(status, rerender) {
+  const messages = {
+    unsupported: 'This browser cannot show notifications. On iPhone, first add SamiMeds to the Home Screen.',
+    unavailable: 'Notifications are not set up on this server yet.',
+    denied: 'Notifications are blocked. Allow them in your browser settings to turn this on.',
+    on: 'Reminders will pop up on this phone, even when SamiMeds is closed.',
+    off: 'Get reminders on this phone, even when SamiMeds is closed.',
+  };
+  const run = async (fn, done) => {
+    try {
+      await fn();
+      toast(done);
+    } catch (err) {
+      toast(err.message);
+    }
+    rerender();
+  };
+  return h('section', { class: 'setting push-card' },
+    h('h3', {}, '🔔 Notifications on this phone'),
+    h('p', {}, messages[status] || messages.off),
+    status === 'off' && h('button', { class: 'btn btn-primary', type: 'button', onclick: () => run(enablePush, 'Notifications are on 🔔') }, '🔔 Turn on notifications'),
+    status === 'on' && h('div', { class: 'row-btns' },
+      h('button', { class: 'btn', type: 'button', onclick: () => run(() => api('/api/push/test', { method: 'POST', body: {} }), 'Test sent – check your notifications') }, 'Send a test'),
+      h('button', { class: 'btn btn-ghost', type: 'button', onclick: () => run(disablePush, 'Notifications are off') }, 'Turn off')));
+}
+
+/** Opens the camera (or photo picker) and returns a small JPEG data URL, or null if cancelled. */
+export function pickPhoto({ capture = 'environment', max = 640, quality = 0.8 } = {}) {
+  return new Promise((resolve, reject) => {
+    const input = h('input', { type: 'file', accept: 'image/*', capture, hidden: true });
+    input.addEventListener('change', () => {
+      const file = input.files?.[0];
+      input.remove();
+      if (!file) return resolve(null);
+      resizeImage(file, max, quality).then(resolve, reject);
+    });
+    input.addEventListener('cancel', () => { input.remove(); resolve(null); });
+    document.body.append(input);
+    input.click();
   });
 }

@@ -13,12 +13,21 @@
     "test": "node --test \"test/**/*.test.js\"",
     "seed": "DEMO_MODE=true node src/seed-cli.js",
     "check:secrets": "node scripts/check-secrets.mjs --all",
-    "prepare": "git config core.hooksPath .githooks || true"
+    "prepare": "git config core.hooksPath .githooks || true",
+    "lint": "eslint .",
+    "push:keys": "node scripts/push-keys.mjs",
+    "check": "npm run lint && npm test && npm run check:secrets"
   },
   "dependencies": {
     "@google-cloud/firestore": "^7.11.0",
     "@google-cloud/storage": "^7.15.0",
-    "nodemailer": "^6.9.16"
+    "nodemailer": "^6.9.16",
+    "web-push": "^3.6.7"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "eslint": "^9.15.0",
+    "@eslint/js": "^9.15.0",
+    "globals": "^15.12.0"
+  }
 }

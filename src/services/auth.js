@@ -14,6 +14,7 @@ export const PERMISSIONS = Object.freeze({
   takeDose: ['elderly', 'caretaker', 'family'],
   manageCare: ['elderly', 'caretaker', 'family'],
   skipDose: ['caretaker', 'family'],
+  verifyProof: ['family'],
   settings: ['caretaker', 'family'],
   manageMembers: ['family'],
 });

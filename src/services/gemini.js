@@ -20,12 +20,14 @@ const MEDICINE_SCHEMA = {
   required: ['name', 'times'],
 };
 
-async function callGemini(prompt, schema, { timeoutMs = 8000 } = {}) {
+async function callGemini(prompt, schema, { timeoutMs = 8000, image = null } = {}) {
+  const parts = [{ text: prompt }];
+  if (image) parts.push({ inline_data: { mime_type: image.contentType, data: image.buf.toString('base64') } });
   const res = await fetch(`${ENDPOINT}/${encodeURIComponent(config.geminiModel)}:generateContent`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-goog-api-key': config.geminiApiKey },
     body: JSON.stringify({
-      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      contents: [{ role: 'user', parts }],
       generationConfig: { responseMimeType: 'application/json', responseSchema: schema, temperature: 0.1 },
     }),
     signal: AbortSignal.timeout(timeoutMs),
@@ -72,4 +74,30 @@ Description: """${String(text).slice(0, 500)}"""`;
     console.warn('[gemini] falling back to local parser:', err.message);
     return { ...local, purpose: '', source: 'local' };
   }
+}
+
+const EMPTY_MEDICINE = Object.freeze({
+  name: '', dose: '', pillDescription: '1 tablet', pillsPerDose: 1, times: ['09:00'], instructions: '', stock: null,
+});
+
+/** Cleans a list of medicines read from a prescription; drops entries without a name. */
+export function sanitizeScan(raw) {
+  const list = Array.isArray(raw?.medicines) ? raw.medicines : [];
+  return list.slice(0, 12).map((m) => sanitizeParsed(m, EMPTY_MEDICINE)).filter((m) => m.name);
+}
+
+/**
+ * Reads a photo of a doctor's prescription with Gemini and returns the medicines on it.
+ * The family always reviews each one before it is saved.
+ */
+export async function scanPrescription(image) {
+  if (!geminiEnabled()) throw Object.assign(new Error('Prescription scan needs a Gemini API key on the server.'), { status: 503 });
+  const prompt = `This is a photo of a doctor's prescription for an elderly patient in India.
+List every medicine on it. For each give: name, dose (strength), pillDescription (what to take each time, e.g. "1 tablet"),
+pillsPerDose, times as 24-hour HH:MM that match the frequency and meal instructions
+(OD = once, BD = twice, TDS = three times; after breakfast ≈ 09:00, after lunch ≈ 14:00, after dinner ≈ 21:00, bedtime ≈ 21:30),
+instructions, and a very simple purpose (e.g. "For blood pressure"). If you cannot read a medicine clearly, leave it out.
+If the image is not a prescription, return an empty list.`;
+  const raw = await callGemini(prompt, { type: 'OBJECT', properties: { medicines: { type: 'ARRAY', items: MEDICINE_SCHEMA } }, required: ['medicines'] }, { timeoutMs: 25_000, image });
+  return sanitizeScan(raw);
 }

@@ -168,3 +168,35 @@ test('Firestore query falls back when a composite index is missing', async () =>
   console.warn = warn;
   assert.deepEqual(out.map((d) => d.id), ['b']);
 });
+
+test('prescription scan output is cleaned', async () => {
+  const { sanitizeScan } = await import('../src/services/gemini.js');
+  const out = sanitizeScan({ medicines: [
+    { name: 'Telmisartan', dose: '40 mg', times: ['09:00', 'bad'], pillsPerDose: 1, purpose: 'For blood pressure' },
+    { name: '', times: ['08:00'] },
+    { name: 'Pantoprazole', times: [] },
+  ] });
+  assert.deepEqual(out.map((m) => m.name), ['Telmisartan', 'Pantoprazole']);
+  assert.deepEqual(out[0].times, ['09:00']);
+  assert.deepEqual(out[1].times, ['09:00']);
+  assert.deepEqual(sanitizeScan({}), []);
+});
+
+test('push goes to the right people', async () => {
+  const { audienceFor, validateSubscription } = await import('../src/services/push.js');
+  assert.deepEqual(audienceFor('elder-upcoming'), ['elderly']);
+  assert.deepEqual(audienceFor('family-missed'), ['family', 'caretaker']);
+  assert.deepEqual(audienceFor('elder-question'), ['family', 'caretaker']);
+  assert.equal(audienceFor('appointment-morning').length, 3);
+  assert.throws(() => validateSubscription({ endpoint: 'http://fcm.googleapis.com/x', keys: {} }), /unknown push service/);
+});
+
+test('Hindi translation: phrases, patterns and untouched family text', async () => {
+  const { toHindi } = await import('../public/js/i18n.js');
+  assert.equal(toHindi('✅ I took it'), '✅ मैंने ले ली');
+  assert.equal(toHindi('In 6 min'), '6 मिनट में');
+  assert.equal(toHindi('Sunday, 15 November'), 'रविवार, 15 नवंबर');
+  assert.equal(toHindi('⏳ Due 4 min ago'), '⏳ 4 मिनट पहले लेनी थी');
+  assert.equal(toHindi('Amlodipine'), 'Amlodipine');
+  assert.equal(toHindi('BP diary, Old reports, Medicine list'), 'BP diary, Old reports, Medicine list');
+});

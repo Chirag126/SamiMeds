@@ -20,11 +20,11 @@ async function bucket() {
 }
 
 /** Decodes and checks a data URL. Verifies magic bytes so a renamed file can't sneak in. */
-export function decodeDataUrl(dataUrl) {
+export function decodeDataUrl(dataUrl, maxBytes = MAX_PHOTO_BYTES) {
   const m = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(String(dataUrl || ''));
   if (!m || !ALLOWED.has(m[1])) throw new ValidationError('photo: must be a JPEG, PNG or WebP image');
   const buf = Buffer.from(m[2], 'base64');
-  if (buf.length > MAX_PHOTO_BYTES) throw new ValidationError('photo: image is too large (max 400 KB)');
+  if (buf.length > maxBytes) throw new ValidationError(`photo: image is too large (max ${Math.round(maxBytes / 1024)} KB)`);
   const isJpeg = buf[0] === 0xff && buf[1] === 0xd8;
   const isPng = buf[0] === 0x89 && buf[1] === 0x50;
   const isWebp = buf.subarray(8, 12).toString('ascii') === 'WEBP';

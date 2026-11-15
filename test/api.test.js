@@ -18,7 +18,7 @@ before(async () => {
   await new Promise((r) => server.listen(0, r));
   base = `http://127.0.0.1:${server.address().port}`;
 });
-after(() => server.close());
+after(() => { server.closeAllConnections(); server.close(); });
 
 /** Minimal client that keeps the session cookie. */
 function client() {
@@ -202,4 +202,102 @@ test('scheduler escalates a forgotten dose to the family exactly once', async ()
 
   const summary = await runTick(store, new Date('2026-01-12T10:00:00Z'));
   assert.ok(summary.circles >= 2);
+});
+
+/* ---------- live sync, push, photo proof, prescription scan, compression ---------- */
+
+const PNG = `data:image/png;base64,${Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0, 0, 0, 0, 0]).toString('base64')}`;
+const pendingDose = async (c) => (await c('/api/today')).data.doses.find((d) => d.status === 'pending');
+
+test('static files are gzipped and revalidated with ETag', async () => {
+  const res = await fetch(`${base}/js/common.js`, { headers: { 'accept-encoding': 'gzip' } });
+  assert.equal(res.headers.get('content-encoding'), 'gzip');
+  const etag = res.headers.get('etag');
+  assert.ok(etag);
+  const again = await fetch(`${base}/js/common.js`, { headers: { 'if-none-match': etag } });
+  assert.equal(again.status, 304);
+});
+
+test('live sync: other screens are told when the elder takes a dose', async () => {
+  const elder = await login(DEMO.pins.elderly);
+  // open the caretaker's event stream using the same cookie
+  const cookieRes = await fetch(`${base}/api/auth/login`, { method: 'POST', headers: { 'X-Requested-With': 'SamiMeds', 'content-type': 'application/json' }, body: JSON.stringify({ code: DEMO.code, pin: DEMO.pins.caretaker }) });
+  const cookie = cookieRes.headers.get('set-cookie').split(';')[0];
+  const ac = new AbortController();
+  const stream = await fetch(`${base}/api/events`, { headers: { cookie }, signal: ac.signal });
+  assert.equal(stream.headers.get('content-type'), 'text/event-stream');
+  const reader = stream.body.getReader();
+  const dose = await pendingDose(elder);
+  await elder(`/api/doses/${dose.id}/take`, { method: 'POST', body: {} });
+  let text = '';
+  while (!text.includes('event: change')) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    text += Buffer.from(value).toString();
+  }
+  ac.abort();
+  assert.match(text, /event: change/);
+  await elder(`/api/doses/${dose.id}/undo`, { method: 'POST', body: {} });
+  assert.equal((await client()('/api/events')).status, 401);
+});
+
+test('push: only real push services are accepted; family is notified when the elder takes a dose', async () => {
+  const { setPushSender } = await import('../src/services/push.js');
+  const sent = [];
+  setPushSender(async (sub, payload) => { sent.push({ endpoint: sub.endpoint, ...JSON.parse(payload) }); });
+  const keys = { p256dh: 'B'.repeat(87), auth: 'a'.repeat(22) };
+  const fam = await login(DEMO.pins.family);
+  const elder = await login(DEMO.pins.elderly);
+  assert.equal((await fam('/api/push/subscribe', { method: 'POST', body: { subscription: { endpoint: 'https://evil.example.com/x', keys } } })).status, 400);
+  assert.equal((await fam('/api/push/subscribe', { method: 'POST', body: { subscription: { endpoint: 'https://fcm.googleapis.com/fcm/send/family1', keys } } })).status, 201);
+  assert.equal((await elder('/api/push/subscribe', { method: 'POST', body: { subscription: { endpoint: 'https://fcm.googleapis.com/fcm/send/elder1', keys } } })).status, 201);
+  assert.equal((await fam('/api/push/test', { method: 'POST', body: {} })).data.sent, 1);
+
+  sent.length = 0;
+  const dose = await pendingDose(elder);
+  await elder(`/api/doses/${dose.id}/take`, { method: 'POST', body: {} });
+  assert.equal(sent.length, 1);
+  assert.match(sent[0].endpoint, /family1/);
+  assert.match(sent[0].title, /took/);
+  await elder(`/api/doses/${dose.id}/undo`, { method: 'POST', body: {} });
+
+  // expired subscriptions are removed
+  setPushSender(async () => { throw Object.assign(new Error('gone'), { statusCode: 410 }); });
+  await fam('/api/push/test', { method: 'POST', body: {} });
+  setPushSender(async (sub, payload) => { sent.push({ endpoint: sub.endpoint, ...JSON.parse(payload) }); });
+  assert.equal((await fam('/api/push/test', { method: 'POST', body: {} })).data.sent, 0);
+});
+
+test('photo proof: elder sends a photo, only family can verify, caretaker sees the result', async () => {
+  const elder = await login(DEMO.pins.elderly);
+  const fam = await login(DEMO.pins.family);
+  const care = await login(DEMO.pins.caretaker);
+  const dose = await pendingDose(elder);
+
+  assert.equal((await elder(`/api/doses/${dose.id}/proof`, { method: 'PUT', body: { dataUrl: 'data:text/html;base64,PGI+' } })).status, 400);
+  const sentPhoto = await elder(`/api/doses/${dose.id}/proof`, { method: 'PUT', body: { dataUrl: PNG } });
+  assert.equal(sentPhoto.data.dose.status, 'taken');
+  assert.equal(sentPhoto.data.dose.proof.status, 'pending');
+
+  const img = await fetch(`${base}/api/doses/${dose.id}/proof`, { headers: { cookie: '' } });
+  assert.equal(img.status, 401);
+  assert.equal((await care(`/api/doses/${dose.id}/verify`, { method: 'POST', body: { ok: true } })).status, 403);
+  assert.equal((await elder(`/api/doses/${dose.id}/verify`, { method: 'POST', body: { ok: true } })).status, 403);
+
+  const verified = await fam(`/api/doses/${dose.id}/verify`, { method: 'POST', body: { ok: true } });
+  assert.equal(verified.data.dose.proof.status, 'verified');
+  assert.equal(verified.data.dose.proof.verifiedBy, 'Chirag');
+  const seenByCaretaker = (await care('/api/today')).data.doses.find((d) => d.id === dose.id);
+  assert.equal(seenByCaretaker.proof.status, 'verified');
+
+  // undo removes the photo
+  await fam(`/api/doses/${dose.id}/undo`, { method: 'POST', body: {} });
+  assert.equal((await care('/api/today')).data.doses.find((d) => d.id === dose.id).proof, null);
+  assert.equal((await fam(`/api/doses/${dose.id}/verify`, { method: 'POST', body: { ok: true } })).status, 409);
+});
+
+test('prescription scan needs Gemini and validates the image', async () => {
+  const fam = await login(DEMO.pins.family);
+  assert.equal((await fam('/api/ai/scan-prescription', { method: 'POST', body: { dataUrl: 'nope' } })).status, 400);
+  assert.equal((await fam('/api/ai/scan-prescription', { method: 'POST', body: { dataUrl: PNG } })).status, 503);
 });

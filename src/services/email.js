@@ -1,6 +1,8 @@
 import { config } from '../config.js';
 import { C } from '../store/index.js';
 import { newId } from './auth.js';
+import { sendPush, audienceFor } from './push.js';
+import { publish } from './events.js';
 
 let transporterPromise = null;
 
@@ -84,5 +86,11 @@ export async function sendEmail(store, { circleId, to, subject, lines, kind, cta
     }
   }
   await store.put(C.notifications, record);
+  // The same reminder also goes to phones as a push notification, and open screens refresh.
+  await sendPush(store, circleId, {
+    roles: audienceFor(kind), title: subject, body: lines.slice(0, 2).join(' '), tag: kind,
+    url: '/',
+  });
+  publish(circleId);
   return record;
 }

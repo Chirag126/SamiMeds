@@ -13,7 +13,29 @@ Each person signs in with the **care circle code + their own 4–6 digit PIN**, 
 
 ---
 
+## 🎯 How it answers the challenge brief
+
+| The brief asks for | Where it is in SamiMeds |
+|---|---|
+| Help the elderly manage medicines, appointments and routines | Elder's screen: one big "take now" card, doctor tab with checklist, daily mood check |
+| Keep family and caretakers informed | Family dashboard, **live sync** between screens, push notifications and emails |
+| Shared ecosystem with secure, passcode-based access | Care circle code + personal PIN, three roles (elder, family, caretaker) |
+| View, add, edit and manage medication schedules | Medicines tab, **Gemini quick add** and **Gemini prescription photo scan** |
+| Track adherence | History tab, streaks, on-time rate, **photo proof verified by family** |
+| Monitor upcoming doctor appointments | Visits tab, plain-language doctor tab, Google Calendar links |
+| Email reminders for upcoming doses, missed medications and appointments | Escalation: before the dose → +30 min → family alerted at +60 min; visit reminders |
+| Go beyond a basic reminder app | Photo proof, prescription scan, Hindi, read aloud, refill tracking, weekly and doctor reports |
+| The elder stays at the centre of their own care | Every change by family shows on the elder's screen with "OK" / "I have a question" |
+| Accessible | Big text and buttons, text-size control, read aloud, **English ⇄ हिंदी**, keyboard and screen-reader support |
+
 ## ✨ Features
+
+### New: sync, proof, scan, Hindi, notifications
+- **Live sync.** When the elder marks a dose taken, the son's and nurse's screens update within a second (Server-Sent Events), with no reload.
+- **Photo proof.** The elder can tap *"I took it – send a photo"*. Family sees the photo and taps **Looks right** or **Not right**; the caretaker sees the result. Only family can verify.
+- **Prescription scan.** Take a photo of the doctor's slip; Gemini lists the medicines and the family adds them after checking each one.
+- **English ⇄ हिंदी** switch on the sign-in, elder and family screens. Read aloud speaks Hindi too.
+- **Phone notifications (Web Push).** Reminders, missed-dose alerts, "took it", photo and verification updates arrive even when the app is closed.
 
 ### Elder's screen (mobile-first)
 - **One task per screen.** The "now" card shows the next due dose. Nothing else competes for attention.
@@ -93,7 +115,9 @@ Installable **PWA** (manifest, icons, service worker with offline shell), safe-a
 
 ```bash
 npm run dev            # demo mode on http://localhost:8080
-npm test               # 50 unit + API tests (node:test, no extra packages)
+npm test               # unit + API tests (node:test)
+npm run lint           # ESLint
+npm run push:keys      # create Web Push keys for phone notifications
 ```
 
 Demo circle code **`DEMO`**: Kamla (elder) `2580` · Chirag (son) `1357` · Anjali (nurse) `2468`.
