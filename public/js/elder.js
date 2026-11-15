@@ -1,6 +1,6 @@
 import {
   api, h, mount, toast, speak, canSpeak, buzz, setupTabs, medicineVisual, relativeDay, MOODS, registerServiceWorker,
-  liveSync, pushStatus, pushCard, pickPhoto,
+  liveSync, pushStatus, pushCard, pickPhoto, busy,
 } from './common.js';
 import { startI18n, langButton, tr } from './i18n.js';
 
@@ -111,6 +111,8 @@ function renderNow() {
   const t = state.today;
   const parts = [];
 
+  for (const a of t.answered || []) if (!dismissed().includes(a.id)) parts.push(answeredCard(a));
+  for (const q of t.openQuestions || []) parts.push(questionCard(q));
   for (const u of t.updates) parts.push(updateCard(u));
 
   if (t.now) {
@@ -129,11 +131,11 @@ function renderNow() {
         m.purpose && h('span', { class: 'chip chip-lilac' }, `💜 ${m.purpose}`)),
       late && h('p', { class: 'calm-next' }, "It's a little late, but you can still take it."),
       h('div', { class: 'due-actions' },
-        h('button', { class: 'btn btn-primary big-btn', type: 'button', onclick: () => take(d) }, '✅ I took it'),
-        h('button', { class: 'btn btn-soft big-btn photo-btn', type: 'button', onclick: () => takeWithPhoto(d) }, '📷 I took it – send a photo to family'),
+        h('button', { class: 'btn btn-primary big-btn', type: 'button', onclick: busy(() => take(d)) }, '✅ I took it'),
+        h('button', { class: 'btn btn-soft big-btn photo-btn', type: 'button', onclick: busy(() => takeWithPhoto(d)) }, '📷 I took it – send a photo to family'),
         h('div', { class: 'row-btns' },
           d.snoozeCount < 3 && d.status === 'pending'
-            ? h('button', { class: 'btn btn-amber big-btn', type: 'button', onclick: () => snooze(d) }, '⏰ Remind me in 15 min')
+            ? h('button', { class: 'btn btn-amber big-btn', type: 'button', onclick: busy(() => snooze(d)) }, '⏰ Remind me in 15 min')
             : h('span'),
           canSpeak() && h('button', { class: 'btn btn-soft big-btn', type: 'button', onclick: () => speak(doseSpeech(d), { rate: state.rate }) }, '🔊 Read aloud')))));
   } else {
@@ -201,7 +203,7 @@ function doseRow(d) {
       h('b', {}, d.medicine.name),
       h('span', { class: 'when' }, `${d.time12} · ${d.medicine.pillDescription || ''}`)),
     canTakeHere
-      ? h('button', { class: 'btn btn-primary btn-sm', type: 'button', onclick: () => take(d), 'aria-label': `I took ${d.medicine.name}` }, '✅ Took it')
+      ? h('button', { class: 'btn btn-primary btn-sm', type: 'button', 'aria-label': `I took ${d.medicine.name}`, onclick: busy(() => take(d)) }, '✅ Took it')
       : h('span', { class: 'row-chips' },
         h('span', { class: `chip ${chip[0]}` }, chip[1]),
         d.proof?.status === 'pending' && h('span', { class: 'chip chip-blue' }, '📷 Photo sent'),
@@ -211,12 +213,50 @@ function doseRow(d) {
 }
 
 function updateCard(u) {
-  return h('article', { class: 'update-card', 'aria-label': 'A change from your family' },
+  const card = h('article', { class: 'update-card', 'aria-label': 'A change from your family' },
     h('p', {}, h('span', { class: 'who' }, `💬 ${u.actorName}`), ' made a change:'),
     h('p', {}, u.detail),
     h('div', { class: 'row-btns' },
-      h('button', { class: 'btn btn-primary', type: 'button', onclick: () => ack(u, 'ok') }, '👍 OK'),
-      h('button', { class: 'btn', type: 'button', onclick: () => ack(u, 'question') }, '❓ I have a question')));
+      h('button', { class: 'btn btn-primary', type: 'button', onclick: busy(() => ack(u, 'ok', card)) }, '👍 OK'),
+      h('button', { class: 'btn', type: 'button', onclick: busy(() => ack(u, 'question', card)) }, '❓ I have a question')));
+  return card;
+}
+
+function callFamilyButton() {
+  const { emergencyPhone, emergencyName } = state.me.circle;
+  return emergencyPhone && h('a', { class: 'btn btn-primary big-btn', href: `tel:${emergencyPhone}` }, `📞 Call ${emergencyName || 'family'}`);
+}
+
+/** Stays on screen after the elder asks, until the family marks it answered. */
+function questionCard(q) {
+  return h('article', { class: 'question-card', 'aria-label': 'Your question', role: 'status' },
+    h('p', { class: 'q-title' }, '✅ Your family has been asked'),
+    h('p', {}, `You asked about: ${q.detail}`),
+    h('p', { class: 'q-note' }, 'They will call you to explain. You can also call them now.'),
+    callFamilyButton());
+}
+
+const DISMISS_KEY = 'sm_answered_seen';
+function dismissed() {
+  try {
+    return JSON.parse(localStorage.getItem(DISMISS_KEY) || '[]');
+  } catch {
+    return [];
+  }
+}
+
+function answeredCard(a) {
+  const card = h('article', { class: 'question-card answered', role: 'status' },
+    h('p', { class: 'q-title' }, `💚 ${a.answeredBy} answered your question`),
+    h('p', {}, `About: ${a.detail}`),
+    h('button', {
+      class: 'btn btn-primary', type: 'button',
+      onclick: () => {
+        try { localStorage.setItem(DISMISS_KEY, JSON.stringify([...dismissed(), a.id].slice(-30))); } catch { /* ignore */ }
+        card.remove();
+      },
+    }, '👍 OK'));
+  return card;
 }
 
 /* ------------------------------------------------------------ actions */
@@ -272,12 +312,19 @@ async function snooze(dose) {
   }
 }
 
-async function ack(update, response) {
+async function ack(update, response, card) {
+  buzz(30);
+  // Answer the tap straight away – the server and the family's alerts follow in the background.
+  const placeholder = response === 'ok'
+    ? h('article', { class: 'question-card answered', role: 'status' }, h('p', { class: 'q-title' }, 'Thank you 👍'))
+    : questionCard(update);
+  card?.replaceWith(placeholder);
   try {
     await api(`/api/activity/${encodeURIComponent(update.id)}/ack`, { method: 'POST', body: { response } });
-    toast(response === 'ok' ? 'Thank you 👍' : `We've asked your family to call you 📞`);
+    toast(response === 'ok' ? 'Thank you 👍' : `We've asked your family to call you 📞`, { duration: 6000 });
     await refresh();
   } catch (err) {
+    placeholder.replaceWith(card);
     toast(err.message);
   }
 }
@@ -386,7 +433,7 @@ function renderDay() {
       h('p', { class: 'visit-line' }, 'Tap one. Your family will see it.'),
       h('div', { class: 'mood-grid', role: 'group', 'aria-label': 'Choose your mood' },
         Object.entries(MOODS).map(([key, m]) => h('button', {
-          class: `mood-btn ${key}`, type: 'button', 'aria-pressed': String(current === key), onclick: () => setMood(key),
+          class: `mood-btn ${key}`, type: 'button', 'aria-pressed': String(current === key), onclick: busy(() => setMood(key)),
         }, h('span', { 'aria-hidden': 'true' }, m.emoji), m.label))),
       current === 'good' && h('p', { class: 'calm-next' }, 'So happy to hear that! 💛'),
       current === 'okay' && h('p', { class: 'calm-next' }, 'Take it easy today. 🌿'),

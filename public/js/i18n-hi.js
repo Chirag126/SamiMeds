@@ -18,6 +18,12 @@ export const EXACT = {
   'Medicines: no doses were due this week.': 'दवाइयाँ: इस हफ़्ते कोई खुराक नहीं थी।', 'No missed doses this week. 🌟': 'इस हफ़्ते कोई खुराक नहीं छूटी। 🌟',
   'Mood: no check-ins this week.': 'हाल: इस हफ़्ते कोई जानकारी नहीं।',
 
+  /* ---------- questions */
+  '✅ Your family has been asked': '✅ परिवार को बता दिया गया है', 'They will call you to explain. You can also call them now.': 'वे आपको फ़ोन करके समझाएँगे। आप भी अभी उन्हें फ़ोन कर सकते हैं।',
+  'Your question': 'आपका सवाल', '✅ Answered': '✅ जवाब दे दिया', 'Sending…': 'भेजा जा रहा है…',
+  'Sending the weekly summary 📧 – see the Alerts tab': 'साप्ताहिक सारांश भेजा जा रहा है 📧 – सूचनाएँ टैब देखें',
+  '📧 Emails are sent through the Gmail API. Every reminder is also listed here.': '📧 ईमेल Gmail API से भेजे जाते हैं। हर रिमाइंडर यहाँ भी दिखता है।',
+
   /* ---------- notifications card */
   '🔔 Notifications on this phone': '🔔 इस फ़ोन पर सूचनाएँ',
   'This browser cannot show notifications. On iPhone, first add SamiMeds to the Home Screen.': 'यह ब्राउज़र सूचनाएँ नहीं दिखा सकता। iPhone पर पहले SamiMeds को होम स्क्रीन पर जोड़ें।',
@@ -225,6 +231,8 @@ for (const [en, hi] of Object.entries(MONTHS_SHORT)) {
 for (const day of ['Today', 'Tomorrow', 'Yesterday']) PATTERNS.push([`${day}, {time}`, `${EXACT[day]}, {time}`]);
 
 PATTERNS.push(
+  ['You asked about: {what}', 'आपने पूछा था: {what}'], ['About: {what}', 'विषय: {what}'], ['💚 {name} answered your question', '💚 {name} ने आपके सवाल का जवाब दिया'],
+  ['✅ Answered by {name}', '✅ {name} ने जवाब दिया'], ['📞 Call {name}', '📞 {name} को फ़ोन करें'], ['{name} will see that you answered 💚', '{name} को दिख जाएगा कि आपने जवाब दे दिया 💚'], [' · {when}', ' · {when}'],
   ['In {n} days, {time}', '{n} दिन में, {time}'], ['{n} min', '{n} मिनट'], ['Dose log for the last {n} days', 'पिछले {n} दिनों का खुराक रिकॉर्ड'],
   ['{a} · {b}', '{a} · {b}'], ['👪 {name} ({rel})', '👪 {name} ({rel})'], ['🧑‍⚕️ {name} ({rel})', '🧑‍⚕️ {name} ({rel})'],
   /* text written by the server */

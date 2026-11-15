@@ -132,7 +132,18 @@ export async function buildToday(store, circle) {
   const history = await dosesBetween(store, circle.id, addDays(now.date, -60), now.date);
   const appts = await upcomingAppointments(store, circle);
   const moods = await store.query(C.moods, [['circleId', '==', circle.id], ['date', '==', now.date]]);
-  const updates = (await store.query(C.activity, [['circleId', '==', circle.id], ['forElderly', '==', true]]))
+  const forElder = await store.query(C.activity, [['circleId', '==', circle.id], ['forElderly', '==', true]]);
+  // Questions the elder asked that the family hasn't answered yet (last 7 days) – shown until answered.
+  const weekAgo = Date.now() - 7 * 86_400_000;
+  const openQuestions = forElder
+    .filter((a) => a.ack === 'question' && !a.answeredAt && Date.parse(a.ackAt || a.at) > weekAgo)
+    .sort((a, b) => b.at.localeCompare(a.at));
+  // Answered in the last day, so the elder sees "Chirag answered" once.
+  const answered = forElder
+    .filter((a) => a.answeredAt && Date.now() - Date.parse(a.answeredAt) < 86_400_000)
+    .sort((a, b) => b.answeredAt.localeCompare(a.answeredAt))
+    .slice(0, 2);
+  const updates = forElder
     .filter((a) => !a.ack)
     .sort((a, b) => b.at.localeCompare(a.at))
     .slice(0, 3);
@@ -154,6 +165,8 @@ export async function buildToday(store, circle) {
     appointments: appts,
     mood: moods.sort((a, b) => b.at.localeCompare(a.at))[0] || null,
     updates,
+    openQuestions,
+    answered,
     lowStock: meds.filter(needsRefill).map((m) => ({ id: m.id, name: m.name, daysLeft: daysLeft(m) })),
   };
 }

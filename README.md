@@ -140,6 +140,25 @@ On Render, put the same names under **Environment** instead.
 
 `GET /api/health` shows which store is active (`memory` or `firestore`).
 
+### 📧 Email on Render (Gmail API)
+
+Render's free plan blocks the SMTP ports (25, 465, 587), so Gmail SMTP times out there.
+SamiMeds can send through the **Gmail API over HTTPS** instead. It is used automatically when these are set:
+`GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN` (and `MAIL_FROM`).
+
+1. **Google Cloud Console** (same project as Firestore) → *APIs & Services* → *Library* → enable **Gmail API**.
+2. *OAuth consent screen* → External → add your Gmail as a test user → then **Publish app** (*In production*).
+   In *Testing* mode Google expires the refresh token after 7 days.
+3. *Credentials* → *Create credentials* → *OAuth client ID* → **Web application**,
+   authorised redirect URI `https://developers.google.com/oauthplayground`.
+4. Open the **OAuth 2.0 Playground** → ⚙️ → *Use your own OAuth credentials* → paste the client ID and secret.
+   Scope: `https://www.googleapis.com/auth/gmail.send` → *Authorize* (sign in with the Gmail that should send) →
+   *Exchange authorization code for tokens* → copy the **refresh token**.
+5. Render → *Environment*: add the three values. The Alerts tab then says *"sent through the Gmail API"*.
+
+Every button that sends email answers immediately and delivers in the background, so a slow or blocked mail
+server never freezes the screen.
+
 ## ☁️ Deploy to Cloud Run
 
 ```bash

@@ -58,6 +58,32 @@ export function mount(el, ...children) {
   append(el, children);
 }
 
+/**
+ * Guards a button while its action runs: the button is disabled at once (so a
+ * second tap does nothing) and turned back on when the action ends.
+ * Use as onclick: busy((e) => doSomething()).
+ */
+export function busy(fn) {
+  return async (event) => {
+    const btn = event?.currentTarget;
+    if (btn?.dataset.busy) return;
+    if (btn) {
+      btn.dataset.busy = '1';
+      btn.disabled = true;
+      btn.setAttribute('aria-busy', 'true');
+    }
+    try {
+      await fn(event);
+    } finally {
+      if (btn) {
+        delete btn.dataset.busy;
+        btn.disabled = false;
+        btn.removeAttribute('aria-busy');
+      }
+    }
+  };
+}
+
 /* ---------- toasts */
 let toastWrap;
 export function toast(message, { action, duration = 4000 } = {}) {

@@ -26,6 +26,12 @@ services:
       # Secrets – fill these in the Render Dashboard → Environment (never in git)
       - key: GEMINI_API_KEY
         sync: false
+      - key: GMAIL_CLIENT_ID
+        sync: false
+      - key: GMAIL_CLIENT_SECRET
+        sync: false
+      - key: GMAIL_REFRESH_TOKEN
+        sync: false
       - key: SMTP_HOST
         value: smtp.gmail.com
       - key: SMTP_PORT

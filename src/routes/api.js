@@ -13,7 +13,7 @@ import { parseMedicine, geminiEnabled, scanPrescription } from '../services/gemi
 import { savePhoto, loadPhoto, deletePhoto, decodeDataUrl } from '../services/photos.js';
 import { subscribe } from '../services/events.js';
 import { pushEnabled, saveSubscription, removeSubscription, sendPush } from '../services/push.js';
-import { sendEmail, emailEnabled } from '../services/email.js';
+import { sendEmail, emailEnabled, emailTransport } from '../services/email.js';
 import {
   nowFor, circleMembers, publicMember, familyEmails, logActivity, buildToday, buildStats,
   buildWeeklySummary, buildDoctorReport, upcomingAppointments, decorateAppointment, prunePendingDoses, runTick,
@@ -222,7 +222,7 @@ export function buildApi() {
         emergencyPhone: ctx.circle.emergencyPhone, emergencyName: ctx.circle.emergencyName,
       },
       members: members.map(publicMember),
-      features: { gemini: geminiEnabled(), email: emailEnabled(), push: pushEnabled() },
+      features: { gemini: geminiEnabled(), email: emailEnabled(), emailVia: emailTransport(), push: pushEnabled() },
     };
   });
 
@@ -475,14 +475,18 @@ export function buildApi() {
     const now = nowFor(ctx.circle);
     const entry = { id: newId('mo_'), circleId: ctx.circle.id, date: now.date, mood, at: new Date().toISOString(), by: ctx.member.name };
     await ctx.store.put(C.moods, entry);
+    // Only alert once per hour, even if "Not well" is tapped again and again.
+    const recent = (await ctx.store.query(C.moods, [['circleId', '==', ctx.circle.id], ['date', '==', now.date]]))
+      .filter((m) => m.id !== entry.id && m.mood === 'unwell' && Date.now() - Date.parse(m.at) < 60 * 60_000);
     let notified = false;
-    if (mood === 'unwell') {
+    if (mood === 'unwell' && recent.length) notified = true;
+    else if (mood === 'unwell') {
       const members = await circleMembers(ctx.store, ctx.circle.id);
       await sendEmail(ctx.store, {
         circleId: ctx.circle.id, to: familyEmails(members), kind: 'mood-unwell',
         subject: `💛 ${ctx.circle.elderName} said they are not feeling well`,
         lines: [`${ctx.circle.elderName} tapped "Not well" in their daily check-in.`, 'A quick call would mean a lot.'],
-      });
+      }, { wait: false });
       notified = true;
     }
     return { status: 201, data: { mood: entry, notified } };
@@ -505,21 +509,38 @@ export function buildApi() {
   r.post('/api/activity/:id/ack', auth, async (ctx) => {
     const entry = await owned(ctx, C.activity, ctx.params.id);
     const { response } = validate({ response: v.enum(['ok', 'question']) }, ctx.body);
-    await ctx.store.put(C.activity, { ...entry, ack: response, ackAt: new Date().toISOString(), ackBy: ctx.member.name });
+    // Tapping twice (or on two phones) must not send the family two alerts.
+    if (entry.ack) return { ok: true, ack: entry.ack, already: true };
+    const updated = { ...entry, ack: response, ackAt: new Date().toISOString(), ackBy: ctx.member.name };
+    await ctx.store.put(C.activity, updated);
     if (response === 'question') {
       const members = await circleMembers(ctx.store, ctx.circle.id);
       await sendEmail(ctx.store, {
         circleId: ctx.circle.id, to: familyEmails(members), kind: 'elder-question',
         subject: `❓ ${ctx.circle.elderName} has a question about a change`,
         lines: [`${ctx.circle.elderName} would like to talk about this change:`, `"${entry.detail}" (by ${entry.actorName}).`, 'Please give them a call to explain.'],
-      });
+        cta: config.publicUrl ? { label: 'Open SamiMeds', url: `${config.publicUrl}/family` } : undefined,
+      }, { wait: false });
     }
+    return { ok: true, ack: response };
+  });
+
+  /** Family or caretaker marks the elder's question as answered (e.g. after calling them). */
+  r.post('/api/activity/:id/answer', auth, allow('settings'), async (ctx) => {
+    const entry = await owned(ctx, C.activity, ctx.params.id);
+    if (entry.ack !== 'question') throw new HttpError(409, 'There is no open question here');
+    if (entry.answeredAt) return { ok: true, already: true };
+    await ctx.store.put(C.activity, { ...entry, answeredAt: new Date().toISOString(), answeredBy: ctx.member.name });
+    await sendPush(ctx.store, ctx.circle.id, {
+      roles: ['elderly'], title: `✅ ${ctx.member.name} answered your question`,
+      body: `About: ${entry.detail}`, url: '/elder', tag: `answer-${entry.id}`,
+    });
     return { ok: true };
   });
 
   r.get('/api/notifications', auth, allow('settings'), async (ctx) => {
     const list = await ctx.store.query(C.notifications, [['circleId', '==', ctx.circle.id]]);
-    return { notifications: list.sort((a, b) => b.at.localeCompare(a.at)).slice(0, 100), emailEnabled: emailEnabled() };
+    return { notifications: list.sort((a, b) => b.at.localeCompare(a.at)).slice(0, 100), emailEnabled: emailEnabled(), emailVia: emailTransport() };
   });
 
   r.get('/api/stats', auth, async (ctx) => {
@@ -534,7 +555,7 @@ export function buildApi() {
 
   r.post('/api/reports/weekly/send', auth, allow('settings'), async (ctx) => {
     const s = await buildWeeklySummary(ctx.store, ctx.circle);
-    const record = await sendEmail(ctx.store, { circleId: ctx.circle.id, to: s.recipients, kind: 'weekly-summary', subject: s.subject, lines: s.lines });
+    const record = await sendEmail(ctx.store, { circleId: ctx.circle.id, to: s.recipients, kind: 'weekly-summary', subject: s.subject, lines: s.lines }, { wait: false });
     return { notification: record };
   });
 
