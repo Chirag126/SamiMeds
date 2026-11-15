@@ -1,0 +1,29 @@
+name: Reminder tick
+
+# Render's free plan sleeps when idle, which pauses the in-app reminder timer.
+# This calls the app every 5 minutes so reminders keep going (and the app stays awake).
+# Setup: repo Settings → Secrets and variables → Actions
+#   secret   CRON_SECRET = same value as CRON_SECRET on Render
+#   variable APP_URL     = https://<your-app>.onrender.com
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    if: ${{ vars.APP_URL != '' }}
+    steps:
+      - name: Run reminders
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl -fsS --retry 3 --retry-delay 20 --max-time 90 \
+            -X POST "$APP_URL/api/cron/tick" \
+            -H "X-Cron-Secret: $CRON_SECRET" \
+            -H "Content-Type: application/json" -d '{}'

@@ -136,3 +136,13 @@ test('photo upload checks type and magic bytes', () => {
   assert.throws(() => decodeDataUrl(`data:image/png;base64,${Buffer.from('<svg>hi</svg>').toString('base64')}`), /valid image/);
   assert.throws(() => decodeDataUrl('data:image/svg+xml;base64,AAAA'), /JPEG, PNG or WebP/);
 });
+
+/* Render / Firestore credentials */
+test('service-account key accepted as raw JSON or base64', async () => {
+  const { parseServiceAccount } = await import('../src/store/firestore.js');
+  const key = { project_id: 'p', client_email: 'a@p.iam.gserviceaccount.com', private_key: 'k' };
+  assert.equal(parseServiceAccount(JSON.stringify(key)).project_id, 'p');
+  assert.equal(parseServiceAccount(Buffer.from(JSON.stringify(key)).toString('base64')).client_email, key.client_email);
+  assert.equal(parseServiceAccount(''), null);
+  assert.throws(() => parseServiceAccount('{"project_id":"p"}'), /missing/);
+});

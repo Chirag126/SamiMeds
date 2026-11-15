@@ -6,7 +6,7 @@ import { FirestoreStore } from './firestore.js';
 export async function createStore(kind = config.store) {
   if (kind === 'firestore') {
     try {
-      return await FirestoreStore.create(config.collectionPrefix);
+      return await FirestoreStore.create(config.collectionPrefix, config.googleServiceAccountJson);
     } catch (err) {
       console.error('[store] Firestore unavailable, using in-memory store:', err.message);
     }
