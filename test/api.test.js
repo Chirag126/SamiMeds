@@ -41,10 +41,14 @@ function client() {
   };
 }
 
+/** Signed-in clients are reused, so the suite stays under the real sign-in rate limit. */
+const sessions = new Map();
 async function login(pin) {
+  if (sessions.has(pin)) return sessions.get(pin);
   const c = client();
   const r = await c('/api/auth/login', { method: 'POST', body: { code: DEMO.code, pin } });
   assert.equal(r.status, 200, JSON.stringify(r.data));
+  sessions.set(pin, c);
   return c;
 }
 
@@ -360,4 +364,97 @@ test('"Not well" tapped again within an hour alerts the family only once', async
   await elder('/api/moods', { method: 'POST', body: { mood: 'unwell' } });
   await elder('/api/moods', { method: 'POST', body: { mood: 'unwell' } });
   assert.ok((await count()) - before <= 1);
+});
+
+test('SOS: elder asks for help once, family responds, elder sees who is coming', async () => {
+  const elder = await login(DEMO.pins.elderly);
+  const fam = await login(DEMO.pins.family);
+  const care = await login(DEMO.pins.caretaker);
+  const first = await elder('/api/sos', { method: 'POST', body: {} });
+  assert.equal(first.status, 201);
+  const again = await elder('/api/sos', { method: 'POST', body: {} });
+  assert.equal(again.data.already, true);
+  assert.equal(again.data.sos.id, first.data.sos.id);
+  const sosMails = (await fam('/api/notifications')).data.notifications.filter((n) => n.kind === 'sos');
+  assert.equal(sosMails.length, 1);
+  assert.equal((await fam('/api/today')).data.sos.id, first.data.sos.id);
+  assert.equal((await elder(`/api/sos/${first.data.sos.id}/respond`, { method: 'POST', body: {} })).status, 403);
+  const answered = await care(`/api/sos/${first.data.sos.id}/respond`, { method: 'POST', body: {} });
+  assert.equal(answered.data.sos.respondedBy, 'Anjali');
+  assert.equal((await elder('/api/today')).data.sos.respondedBy, 'Anjali');
+  assert.equal((await fam(`/api/sos/${first.data.sos.id}/respond`, { method: 'POST', body: {} })).data.already, true);
+});
+
+/* ---------- medicines, circle and system routes ---------- */
+
+test('health and config report the setup without secrets', async () => {
+  const health = await client()('/api/health');
+  assert.deepEqual(health.data, { ok: true, store: 'memory' });
+  const cfg = await client()('/api/config');
+  assert.equal(cfg.data.demo, false);
+  assert.equal(typeof cfg.data.gemini, 'boolean');
+  assert.ok(!JSON.stringify(cfg.data).match(/key|secret|token/i));
+});
+
+test('medicines: edit, refill, photo, stop', async () => {
+  const fam = await login(DEMO.pins.family);
+  const created = await fam('/api/medicines', { method: 'POST', body: { name: 'Thyronorm', dose: '50 mcg', times: ['06:30'], stock: 4 } });
+  const id = created.data.medicine.id;
+  assert.equal(created.data.medicine.needsRefill, true);
+
+  const edited = await fam(`/api/medicines/${id}`, { method: 'PUT', body: { times: ['06:30', '18:30'], purpose: 'For thyroid' } });
+  assert.deepEqual(edited.data.medicine.times, ['06:30', '18:30']);
+  assert.equal(edited.data.medicine.daysLeft, 2);
+  assert.equal((await fam(`/api/medicines/${id}`, { method: 'PUT', body: { times: [] } })).status, 400);
+
+  const refilled = await fam(`/api/medicines/${id}/refill`, { method: 'POST', body: { add: 56 } });
+  assert.equal(refilled.data.medicine.stock, 60);
+  assert.equal(refilled.data.medicine.needsRefill, false);
+  assert.equal((await fam(`/api/medicines/${id}/refill`, { method: 'POST', body: { add: -5 } })).status, 400);
+
+  assert.equal((await fam(`/api/medicines/${id}/photo`, { method: 'PUT', body: { dataUrl: PNG } })).status, 200);
+  const photo = await fam(`/api/medicines/${id}/photo`);
+  assert.equal(photo.status, 200);
+  assert.equal(photo.headers.get('content-type'), 'image/png');
+
+  assert.equal((await fam(`/api/medicines/${id}`, { method: 'DELETE' })).status, 200);
+  const list = (await fam('/api/medicines')).data.medicines;
+  assert.ok(!list.some((m) => m.id === id));
+  assert.equal((await fam(`/api/medicines/${id}/photo`)).status, 404);
+});
+
+test('circle: settings, add/edit/remove member, PIN rules, elder protected', async () => {
+  const fam = await login(DEMO.pins.family);
+  const care = await login(DEMO.pins.caretaker);
+  assert.equal((await fam('/api/circle', { method: 'PUT', body: { timezone: 'Not/AZone' } })).status, 400);
+  const saved = await fam('/api/circle', { method: 'PUT', body: { emergencyName: 'Chirag (son)' } });
+  assert.equal(saved.data.circle.emergencyName, 'Chirag (son)');
+  await fam('/api/circle', { method: 'PUT', body: { emergencyName: 'Chirag' } });
+
+  assert.equal((await fam('/api/members', { method: 'POST', body: { name: 'Dup', role: 'family', pin: DEMO.pins.caretaker } })).status, 409);
+  assert.equal((await fam('/api/members', { method: 'POST', body: { name: 'Two', role: 'elderly', pin: '7391' } })).status, 400);
+  const added = await fam('/api/members', { method: 'POST', body: { name: 'Meera', role: 'family', relation: 'Granddaughter', pin: '8642' } });
+  assert.equal(added.status, 201);
+  const meeraId = added.data.member.id;
+  assert.ok(!('pinHash' in added.data.member));
+
+  assert.equal((await care(`/api/members/${meeraId}`, { method: 'PUT', body: { name: 'X' } })).status, 403);
+  assert.equal((await fam(`/api/members/${meeraId}`, { method: 'PUT', body: { phone: '+91 98765 43210' } })).data.member.phone, '+919876543210');
+  assert.equal((await fam('/api/members/m_demo_elderly', { method: 'DELETE' })).status, 400);
+  assert.equal((await fam('/api/members/m_demo_family', { method: 'DELETE' })).status, 400);
+  assert.equal((await fam(`/api/members/${meeraId}`, { method: 'DELETE' })).status, 200);
+  assert.ok(!(await fam('/api/members')).data.members.some((m) => m.id === meeraId));
+});
+
+test('appointments: edit resets reminders, cancel and delete', async () => {
+  const fam = await login(DEMO.pins.family);
+  const made = await fam('/api/appointments', { method: 'POST', body: { doctor: 'Dr. Paul', date: '2099-03-01', time: '09:00', checklist: ['Reports'], notes: '' } });
+  const id = made.data.appointment.id;
+  const moved = await fam(`/api/appointments/${id}`, { method: 'PUT', body: { time: '10:30', checklist: ['Reports', 'Glasses'] } });
+  assert.equal(moved.data.appointment.time, '10:30');
+  assert.deepEqual(moved.data.appointment.checklistDone, [false, false]);
+  assert.equal((await fam(`/api/appointments/${id}`, { method: 'PUT', body: { status: 'cancelled' } })).data.appointment.status, 'cancelled');
+  const lists = (await fam('/api/appointments')).data;
+  assert.ok(lists.past.some((a) => a.id === id));
+  assert.equal((await fam(`/api/appointments/${id}`, { method: 'DELETE' })).status, 200);
 });

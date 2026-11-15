@@ -111,6 +111,7 @@ function renderNow() {
   const t = state.today;
   const parts = [];
 
+  if (t.sos) parts.push(sosStatusCard(t.sos));
   for (const a of t.answered || []) if (!dismissed().includes(a.id)) parts.push(answeredCard(a));
   for (const q of t.openQuestions || []) parts.push(questionCard(q));
   for (const u of t.updates) parts.push(updateCard(u));
@@ -464,11 +465,49 @@ async function setMood(mood) {
 
 /* ------------------------------------------------------------ help tab */
 
+/* ------------------------------------------------------------ SOS: ask for help */
+
+/** Big help button with a confirm step, so one stray tap doesn't alarm everyone. */
+function sosButton() {
+  const wrap = h('section', { class: 'sos-wrap' });
+  const ask = () => mount(wrap,
+    h('p', { class: 'sos-confirm-q' }, 'Send a help alert to your family now?'),
+    h('div', { class: 'row-btns' },
+      h('button', { class: 'btn btn-danger big-btn', type: 'button', onclick: busy(sendSos) }, '🆘 Yes, send'),
+      h('button', { class: 'btn big-btn', type: 'button', onclick: () => mount(wrap, start()) }, 'No')));
+  const start = () => h('button', { class: 'sos-help', type: 'button', onclick: () => { buzz(30); ask(); } },
+    h('span', { 'aria-hidden': 'true' }, '🆘'), 'I need help');
+  mount(wrap, start());
+  return wrap;
+}
+
+async function sendSos() {
+  buzz([80, 40, 80]);
+  try {
+    const res = await api('/api/sos', { method: 'POST', body: {} });
+    state.today.sos = res.sos;
+    toast('Your family has been alerted 🆘', { duration: 6000 });
+    render();
+  } catch (err) {
+    toast(err.message);
+  }
+}
+
+/** Shows that help was asked for, and who is coming once someone responds. */
+function sosStatusCard(sos) {
+  const responded = Boolean(sos.respondedAt);
+  return h('article', { class: `sos-status${responded ? ' responded' : ''}`, role: 'status', 'aria-live': 'assertive' },
+    h('p', { class: 'q-title' }, responded ? `💚 ${sos.respondedBy} is on the way` : '🆘 Help alert sent'),
+    h('p', {}, responded ? 'Help is coming. Stay where you are.' : 'Your family has been told. Someone will respond soon.'),
+    callFamilyButton());
+}
+
 function renderHelp() {
   const { circle, members, member } = state.me;
   const size = document.documentElement.dataset.size;
   const callable = members.filter((m) => m.phone && m.id !== member.id);
   mount($('panel-help'),
+    state.today?.sos ? sosStatusCard(state.today.sos) : sosButton(),
     circle.emergencyPhone
       ? h('a', { class: 'sos', href: `tel:${circle.emergencyPhone}` }, h('span', { 'aria-hidden': 'true' }, '📞'), `Call ${circle.emergencyName || 'family'} now`)
       : h('p', { class: 'empty' }, 'Ask your family to add an emergency phone number.'),
