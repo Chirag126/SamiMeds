@@ -8,20 +8,29 @@ const bool = (value, fallback = false) =>
   value === undefined ? fallback : ['1', 'true', 'yes'].includes(String(value).toLowerCase());
 
 const onCloudRun = Boolean(env.K_SERVICE);
+const onRender = env.RENDER === 'true';
+const hasGoogleCredentials = Boolean(env.GOOGLE_APPLICATION_CREDENTIALS || env.GOOGLE_SERVICE_ACCOUNT_JSON);
 
 export const config = Object.freeze({
   port: Number(env.PORT) || 8080,
-  isProduction: env.NODE_ENV === 'production' || onCloudRun,
+  isProduction: env.NODE_ENV === 'production' || onCloudRun || onRender,
   onCloudRun,
+  onRender,
 
-  /** 'memory' (default locally) or 'firestore' (default on Cloud Run). */
-  store: env.STORE || (onCloudRun ? 'firestore' : 'memory'),
+  /**
+   * 'memory' or 'firestore'. Firestore is the default on Cloud Run, and anywhere
+   * (e.g. Render) once Google credentials are provided.
+   */
+  store: env.STORE || (onCloudRun || hasGoogleCredentials ? 'firestore' : 'memory'),
+  /** Service-account key as raw JSON or base64 – handy on hosts like Render. */
+  googleServiceAccountJson: env.GOOGLE_SERVICE_ACCOUNT_JSON || '',
   dataFile: env.DATA_FILE || '',
   collectionPrefix: env.COLLECTION_PREFIX || 'samimeds_',
 
   demoMode: bool(env.DEMO_MODE),
   defaultTimezone: env.DEFAULT_TIMEZONE || 'Asia/Kolkata',
-  publicUrl: (env.PUBLIC_URL || '').replace(/\/$/, ''),
+  // Render sets RENDER_EXTERNAL_URL automatically.
+  publicUrl: (env.PUBLIC_URL || env.RENDER_EXTERNAL_URL || '').replace(/\/$/, ''),
 
   /** Shared secret Cloud Scheduler sends in the X-Cron-Secret header. */
   cronSecret: env.CRON_SECRET || '',

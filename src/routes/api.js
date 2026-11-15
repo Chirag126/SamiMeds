@@ -120,7 +120,10 @@ const medicineView = (m) => ({ ...m, daysLeft: daysLeft(m), needsRefill: needsRe
 export function buildApi() {
   const r = new Router();
 
-  r.get('/api/health', async () => ({ ok: true }));
+  r.get('/api/health', async (ctx) => ({
+    ok: true,
+    store: ctx.store.constructor.name === 'FirestoreStore' ? 'firestore' : 'memory',
+  }));
 
   r.get('/api/config', async () => ({
     demo: config.demoMode,

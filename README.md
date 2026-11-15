@@ -105,6 +105,17 @@ Copy `.env.example` to `.env`, fill in your values, and run `node --env-file=.en
 API keys, passwords and `.env` files, and a GitHub Action runs the same check on every PR.
 On Render, put the same names under **Environment** instead.
 
+## 🚀 Deploy to Render
+
+`render.yaml` describes the service (Node 22, Singapore region, health check `/api/health`).
+1. Render Dashboard → **Environment**: add `GEMINI_API_KEY`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM`.
+2. **Keep data across restarts (recommended):** create a Firestore database and a service-account key in Google Cloud,
+   then paste the key JSON into `GOOGLE_SERVICE_ACCOUNT_JSON`. Without it, data is kept in memory, and the demo circle is re-created on every restart.
+3. **Reminders while the free plan sleeps:** in GitHub → Settings → Secrets and variables → Actions, add the secret `CRON_SECRET` (same value as on Render) and the variable `APP_URL`.
+   The *Reminder tick* workflow then calls the app every 5 minutes.
+
+`GET /api/health` shows which store is active (`memory` or `firestore`).
+
 ## ☁️ Deploy to Cloud Run
 
 ```bash

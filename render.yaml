@@ -1,0 +1,41 @@
+# Render Blueprint for SamiMeds (https://render.com/docs/blueprint-spec)
+services:
+  - type: web
+    name: samimeds
+    runtime: node
+    region: singapore          # closest Render region to India
+    plan: free
+    branch: main
+    buildCommand: npm install --omit=dev --no-audit --no-fund
+    startCommand: node src/server.js
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: DEMO_MODE
+        value: "true"
+      - key: DEFAULT_TIMEZONE
+        value: Asia/Kolkata
+      - key: INTERNAL_SCHEDULER
+        value: "true"
+      - key: CRON_SECRET
+        generateValue: true
+      # Secrets – fill these in the Render Dashboard → Environment (never in git)
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: "465"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+      # Optional: Firestore so data survives restarts (service-account JSON, raw or base64)
+      - key: GOOGLE_SERVICE_ACCOUNT_JSON
+        sync: false
