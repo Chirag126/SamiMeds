@@ -146,3 +146,25 @@ test('service-account key accepted as raw JSON or base64', async () => {
   assert.equal(parseServiceAccount(''), null);
   assert.throws(() => parseServiceAccount('{"project_id":"p"}'), /missing/);
 });
+
+test('Firestore query falls back when a composite index is missing', async () => {
+  const { FirestoreStore } = await import('../src/store/firestore.js');
+  const docs = [{ id: 'a', circleId: 'c', date: '2026-01-01' }, { id: 'b', circleId: 'c', date: '2026-01-09' }, { id: 'x', circleId: 'z', date: '2026-01-09' }];
+  const fakeDb = {
+    collection: () => {
+      const make = (filters) => ({
+        where: (f, op, v) => make([...filters, [f, op, v]]),
+        get: async () => {
+          if (filters.some(([, op]) => op !== '==')) throw Object.assign(new Error('The query requires an index'), { code: 9 });
+          return { docs: docs.filter((d) => filters.every(([f, , v]) => d[f] === v)).map((d) => ({ data: () => d })) };
+        },
+      });
+      return make([]);
+    },
+  };
+  const store = new FirestoreStore(fakeDb, 'p_');
+  const warn = console.warn; console.warn = () => {};
+  const out = await store.query('doses', [['circleId', '==', 'c'], ['date', '>=', '2026-01-05']]);
+  console.warn = warn;
+  assert.deepEqual(out.map((d) => d.id), ['b']);
+});

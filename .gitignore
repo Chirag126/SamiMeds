@@ -13,6 +13,7 @@ npm-debug.log*
 
 # Google service-account keys and other credentials
 *service-account*.json
+*firebase-adminsdk*.json
 *-credentials.json
 credentials.json
 gcloud-key*.json
