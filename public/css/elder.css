@@ -200,3 +200,9 @@ html[data-size="xl"] .mood-btn span { font-size: 2.4rem; }
 .bottom-tabs [role="tablist"] { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 html[data-size="xl"] .bottom-tabs [role="tab"] { font-size: 0.62rem; }
 html[data-size="xl"] .ring, html[data-size="xl"] .ring svg { width: 80px; height: 80px; }
+
+.lang-btn { font-size: 0.85rem; }
+.photo-btn { min-height: 64px; font-size: 1.05rem; }
+.row-chips { display: grid; gap: 6px; justify-items: end; }
+.row-chips { max-width: 9.5em; }
+.row-chips .chip { white-space: normal; text-align: center; }

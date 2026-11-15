@@ -144,6 +144,15 @@
       </div>
     </form>
   </dialog>
+  <!-- Prescription scan results -->
+  <dialog id="scan-dialog" aria-labelledby="scan-dialog-title">
+    <div class="dialog-head">
+      <h2 id="scan-dialog-title">📷 Prescription scan</h2>
+      <button class="btn btn-ghost btn-sm" type="button" data-close aria-label="Close">✕</button>
+    </div>
+    <div class="dialog-body" id="scan-body" aria-live="polite"></div>
+    <div class="dialog-foot"><button class="btn" type="button" data-close>Done</button></div>
+  </dialog>
   <datalist id="specialties">
     <option value="General physician"><option value="Cardiology"><option value="Endocrinology"><option value="Orthopedics">
     <option value="Ophthalmology"><option value="Neurology"><option value="Nephrology"><option value="Pulmonology">

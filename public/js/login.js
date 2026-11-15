@@ -1,4 +1,5 @@
 import { api, setupTabs, buzz, registerServiceWorker } from './common.js';
+import { startI18n, langButton } from './i18n.js';
 
 const $ = (id) => document.getElementById(id);
 const store = {
@@ -11,6 +12,8 @@ const home = (role) => (role === 'elderly' ? '/elder' : '/family');
 
 async function init() {
   registerServiceWorker();
+  startI18n();
+  $('lang-slot').append(langButton({ className: 'btn btn-sm' }));
 
   // Already signed in? Go straight in.
   try {

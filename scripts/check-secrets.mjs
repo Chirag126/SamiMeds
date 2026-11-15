@@ -28,7 +28,7 @@ const PATTERNS = [
   ['Private key', /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/],
   ['Service-account key', /"private_key_id"\s*:\s*"[0-9a-f]{20,}"/],
   ['GitHub token', /gh[pousr]_[0-9A-Za-z]{30,}/],
-  ['Filled-in secret variable', /^[ \t]*(?:SMTP_PASS|GEMINI_API_KEY|CRON_SECRET)[ \t]*=[ \t]*[^\s#]/m],
+  ['Filled-in secret variable', /^[ \t]*(?:SMTP_PASS|GEMINI_API_KEY|CRON_SECRET|VAPID_PRIVATE_KEY)[ \t]*=[ \t]*[^\s#]/m],
 ];
 
 const problems = [];

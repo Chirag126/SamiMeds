@@ -27,4 +27,5 @@ export const C = Object.freeze({
   notifications: 'notifications',
   sessions: 'sessions',
   lockouts: 'lockouts',
+  push: 'push',
 });

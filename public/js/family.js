@@ -1,10 +1,11 @@
 import {
   api, h, mount, toast, setupTabs, medicineVisual, relativeDay, shortDate, timeAgo, time12, MOODS,
-  resizeImage, registerServiceWorker,
+  resizeImage, registerServiceWorker, liveSync, pushStatus, pushCard, pickPhoto,
 } from './common.js';
+import { startI18n, langButton } from './i18n.js';
 
 const $ = (id) => document.getElementById(id);
-const state = { me: null, tab: 'overview', historyDays: 7, editingMed: null, editingVisit: null, photoData: null };
+const state = { me: null, tab: 'overview', historyDays: 7, editingMed: null, editingVisit: null, photoData: null, push: 'off' };
 const can = (p) => Boolean(state.me?.permissions?.[p]);
 const ROLE_ICON = { elderly: '👵', family: '👪', caretaker: '🧑‍⚕️' };
 const ROLE_NAME = { elderly: 'Elder', family: 'Family', caretaker: 'Caretaker' };
@@ -13,6 +14,8 @@ const ROLE_NAME = { elderly: 'Elder', family: 'Family', caretaker: 'Caretaker' }
 
 async function boot() {
   registerServiceWorker();
+  startI18n();
+  $('logout').before(langButton({ className: 'btn btn-sm' }));
   state.me = await api('/api/me');
   renderHeader();
   $('logout').addEventListener('click', logout);
@@ -22,12 +25,23 @@ async function boot() {
   setupMedicineDialog();
   setupVisitDialog();
   setInterval(() => { if (!document.hidden && state.tab === 'overview') load('overview'); }, 60_000);
+  // Live sync: when the elder (or anyone) changes something, this screen updates by itself.
+  liveSync(() => { if (canAutoRefresh()) reload(); });
+  pushStatus().then((st) => { state.push = st; if (state.tab === 'alerts') reload(); });
 }
 
 function renderHeader() {
   const { circle, member } = state.me;
   $('circle-title').textContent = `${circle.elderName}'s care circle`;
   $('circle-sub').textContent = `${member.name} · ${ROLE_NAME[member.role]} · Circle code ${circle.code}`;
+}
+
+/** Don't refresh under someone's fingers: skip while they are typing or a dialog is open. */
+function canAutoRefresh() {
+  if (document.querySelector('dialog[open]')) return false;
+  const active = document.activeElement;
+  if (active && ['INPUT', 'TEXTAREA', 'SELECT'].includes(active.tagName)) return false;
+  return state.tab !== 'circle';
 }
 
 async function logout() {
@@ -85,6 +99,33 @@ function doseActions(d) {
   return out;
 }
 
+const proofUrl = (d) => `/api/doses/${encodeURIComponent(d.id)}/proof?v=${d.proof.version || 1}`;
+
+function proofChip(d) {
+  if (!d.proof) return null;
+  if (d.proof.status === 'verified') return h('span', { class: 'chip chip-green' }, `📷 Verified by ${d.proof.verifiedBy}`);
+  if (d.proof.status === 'rejected') return h('span', { class: 'chip chip-rose' }, `📷 Needs a check (${d.proof.verifiedBy})`);
+  return h('span', { class: 'chip chip-blue' }, '📷 Photo waiting for check');
+}
+
+const verify = (d, ok) => act(api(`/api/doses/${encodeURIComponent(d.id)}/verify`, { method: 'POST', body: { ok } }), ok ? 'Photo verified ✅' : 'Marked for a second look');
+
+/** A card for a photo the elder sent: family verifies it, the caretaker sees the result. */
+function proofCard(d) {
+  const who = state.me.circle.elderName.split(' ')[0];
+  return h('div', { class: 'proof-card' },
+    h('a', { href: proofUrl(d), target: '_blank', rel: 'noopener', 'aria-label': 'Open the photo in full size' },
+      h('img', { src: proofUrl(d), alt: `Photo sent by ${who} for ${d.medicine.name}`, loading: 'lazy' })),
+    h('div', {},
+      h('b', {}, `📷 ${who} sent a photo: ${d.medicine.name} (${d.time12})`),
+      h('small', {}, `${timeAgo(d.proof.at)}`),
+      can('verifyProof')
+        ? h('div', { class: 'med-actions' },
+          h('button', { class: 'btn btn-sm btn-primary', type: 'button', onclick: () => verify(d, true) }, '✅ Looks right'),
+          h('button', { class: 'btn btn-sm', type: 'button', onclick: () => verify(d, false) }, '⚠️ Not right'))
+        : h('span', { class: 'chip chip-blue' }, 'Waiting for family to check')));
+}
+
 function skipDose(d) {
   const reason = window.prompt(`Why skip ${d.medicine.name} at ${d.time12}? (optional – e.g. doctor said so)`);
   if (reason === null) return;
@@ -98,6 +139,7 @@ async function renderOverview() {
   const elder = state.me.circle.elderName.split(' ')[0];
 
   const alerts = [
+    ...today.doses.filter((d) => d.proof?.status === 'pending').map(proofCard),
     ...questions.slice(0, 3).map((q) => h('div', { class: 'alert-item lilac' },
       h('span', {}, `❓ ${elder} has a question about: “${q.detail}”`),
       state.me.circle.emergencyPhone && h('span', {}, '📞 Give them a call'))),
@@ -134,7 +176,8 @@ async function renderOverview() {
               medicineVisual(d.medicine, 46),
               h('div', {}, h('b', {}, `${d.time12} · ${d.medicine.name}`),
                 h('small', {}, d.status === 'taken' ? `by ${d.takenBy}${d.lateMinutes > 30 ? `, ${d.lateMinutes} min late` : ''}` : (d.medicine.pillDescription || ''))),
-              h('div', { class: 'row-actions' }, h('span', { class: `chip ${cls}` }, label), doseActions(d)));
+              h('div', { class: 'row-actions' }, h('span', { class: `chip ${cls}` }, label), proofChip(d),
+                d.proof && h('a', { class: 'btn btn-sm btn-ghost', href: proofUrl(d), target: '_blank', rel: 'noopener' }, 'View photo'), doseActions(d)));
           }))
           : h('p', { class: 'empty' }, 'No medicines yet. Add them in the Medicines tab.')),
       h('section', { class: 'card' },
@@ -174,7 +217,9 @@ async function renderMedicines() {
   mount($('panel-medicines'),
     h('div', { class: 'panel-head' },
       h('h2', {}, 'Medicines'),
-      can('manageCare') && h('button', { class: 'btn btn-primary', type: 'button', onclick: () => openMedicine() }, '＋ Add medicine')),
+      can('manageCare') && h('div', { class: 'med-actions' },
+        h('button', { class: 'btn btn-soft', type: 'button', onclick: scanPrescription }, '📷 Scan a prescription'),
+        h('button', { class: 'btn btn-primary', type: 'button', onclick: () => openMedicine() }, '＋ Add medicine'))),
     medicines.length
       ? h('div', { class: 'med-grid' }, medicines.map(medCard))
       : h('div', { class: 'card empty' }, h('p', {}, '💊 No medicines yet.'), h('p', {}, 'Tap “Add medicine” – you can just describe it in plain words.')));
@@ -201,6 +246,66 @@ function medCard(m) {
       h('button', { class: 'btn btn-sm', type: 'button', onclick: () => { refillBox.hidden = !refillBox.hidden; if (!refillBox.hidden) input.focus(); } }, '📦 Refill'),
       h('button', { class: 'btn btn-sm btn-ghost', type: 'button', onclick: () => stopMedicine(m) }, '🛑 Stop')),
     refillBox);
+}
+
+/* ---- prescription scan (Gemini reads the photo; the family reviews before anything is saved) */
+
+async function scanPrescription() {
+  let dataUrl;
+  try {
+    dataUrl = await pickPhoto({ max: 1400, quality: 0.75 });
+  } catch (err) {
+    toast(err.message);
+    return;
+  }
+  if (!dataUrl) return;
+  const dialog = $('scan-dialog');
+  const body = $('scan-body');
+  mount(body, h('div', { class: 'spinner', role: 'progressbar', 'aria-label': 'Reading the prescription' }), h('p', { class: 'empty' }, 'Reading the prescription with Gemini…'));
+  dialog.showModal();
+  try {
+    const { medicines } = await api('/api/ai/scan-prescription', { method: 'POST', body: { dataUrl } });
+    renderScan(medicines);
+  } catch (err) {
+    mount(body, h('p', { class: 'info' }, err.message));
+  }
+}
+
+function renderScan(medicines) {
+  const body = $('scan-body');
+  if (!medicines.length) {
+    mount(body, h('p', { class: 'info' }, 'No medicines could be read from that photo. Try a clearer, well-lit picture.'));
+    return;
+  }
+  const rows = medicines.map((m) => {
+    const status = h('span', { class: 'row-actions' });
+    const add = async () => {
+      try {
+        await api('/api/medicines', { method: 'POST', body: { ...m, color: 'white', shape: 'round' } });
+        mount(status, h('span', { class: 'chip chip-green' }, '✅ Added'));
+        if (state.tab === 'medicines') renderMedicines();
+      } catch (err) {
+        toast(err.message);
+      }
+    };
+    const edit = () => {
+      $('scan-dialog').close();
+      openMedicine();
+      fillMedicineForm({ ...m, color: 'white', shape: 'round' });
+      $('ai-box').hidden = true;
+    };
+    mount(status,
+      h('button', { class: 'btn btn-sm btn-primary', type: 'button', onclick: add }, '＋ Add'),
+      h('button', { class: 'btn btn-sm', type: 'button', onclick: edit }, '✏️ Edit first'));
+    return h('li', { class: 'row scan-row' },
+      h('span', { class: 'scan-icon', 'aria-hidden': 'true' }, '💊'),
+      h('div', {}, h('b', {}, `${m.name}${m.dose ? ` · ${m.dose}` : ''}`),
+        h('small', {}, [m.pillDescription, m.times.map(time12).join(', '), m.instructions, m.purpose].filter(Boolean).join(' · '))),
+      status);
+  });
+  mount(body,
+    h('p', { class: 'info' }, `Gemini found ${medicines.length} medicine(s). Please check each one against the prescription before adding.`),
+    h('ul', { class: 'rows' }, rows));
 }
 
 function stopMedicine(m) {
@@ -345,6 +450,7 @@ function visitCard(a, isPast) {
 }
 
 function setupVisitDialog() {
+  $('scan-dialog').querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => $('scan-dialog').close()));
   const dialog = $('visit-dialog');
   const form = $('visit-form');
   dialog.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => dialog.close()));
@@ -442,12 +548,15 @@ const KIND_ICON = {
 
 async function renderAlerts() {
   if (!can('settings')) {
-    mount($('panel-alerts'), h('p', { class: 'info' }, 'Only family and caretakers can see the reminder log.'));
+    mount($('panel-alerts'),
+      pushCard(state.push, async () => { state.push = await pushStatus(); renderAlerts(); }),
+      h('p', { class: 'info' }, 'Only family and caretakers can see the reminder log.'));
     return;
   }
   const { notifications, emailEnabled } = await api('/api/notifications');
   mount($('panel-alerts'),
     h('div', { class: 'panel-head' }, h('h2', {}, 'Reminders & alerts')),
+    pushCard(state.push, async () => { state.push = await pushStatus(); renderAlerts(); }),
     h('p', { class: 'info' }, emailEnabled
       ? '📧 Emails are being sent. Every reminder is also listed here.'
       : '📧 Email sending isn\'t set up on this server, so reminders are listed here instead of being sent.'),

@@ -1,3 +1,5 @@
+import { gzipSync } from 'node:zlib';
+
 export class HttpError extends Error {
   constructor(status, message, extra = {}) {
     super(message);
@@ -29,12 +31,15 @@ export async function readJson(req, limit = MAX_BODY_BYTES) {
 }
 
 export function sendJson(res, status, data, headers = {}) {
-  const body = JSON.stringify(data);
-  res.writeHead(status, {
-    'content-type': 'application/json; charset=utf-8',
-    'cache-control': 'no-store',
-    ...headers,
-  });
+  let body = Buffer.from(JSON.stringify(data));
+  const all = { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...headers };
+  if (res.acceptsGzip && body.length > 1024) {
+    body = gzipSync(body);
+    all['content-encoding'] = 'gzip';
+    all.vary = 'Accept-Encoding';
+  }
+  all['content-length'] = body.length;
+  res.writeHead(status, all);
   res.end(body);
 }
 

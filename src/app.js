@@ -1,11 +1,13 @@
-import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { join, normalize, extname } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { gzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { HttpError, readJson, sendJson, parseCookies } from './http.js';
 import { buildApi } from './routes/api.js';
 import { ValidationError } from './services/validate.js';
 import { config } from './config.js';
+import { publish } from './services/events.js';
 
 const PUBLIC_DIR = fileURLToPath(new URL('../public/', import.meta.url));
 
@@ -46,27 +48,58 @@ export const SECURITY_HEADERS = {
   'cross-origin-opener-policy': 'same-origin',
 };
 
+const COMPRESSIBLE = new Set(['.html', '.css', '.js', '.json', '.webmanifest', '.svg', '.txt']);
+const staticCache = new Map(); // path → { mtimeMs, raw, gz, etag }
+
+const acceptsGzip = (req) => /\bgzip\b/.test(req.headers['accept-encoding'] || '');
+
+/** Reads a static file once, keeps a gzipped copy, and re-reads only when it changes. */
+async function loadStatic(full) {
+  const info = await stat(full);
+  if (!info.isFile()) return null;
+  const cached = staticCache.get(full);
+  if (cached && cached.mtimeMs === info.mtimeMs) return cached;
+  const raw = await readFile(full);
+  const entry = {
+    mtimeMs: info.mtimeMs,
+    raw,
+    gz: COMPRESSIBLE.has(extname(full)) ? gzipSync(raw) : null,
+    etag: `"${info.size.toString(16)}-${Math.round(info.mtimeMs).toString(16)}"`,
+  };
+  staticCache.set(full, entry);
+  return entry;
+}
+
 async function serveStatic(req, res, pathname) {
   const file = PAGES[pathname] || pathname.slice(1);
   const full = normalize(join(PUBLIC_DIR, file));
   if (!full.startsWith(PUBLIC_DIR)) return false; // path traversal guard
+  let entry;
   try {
-    const info = await stat(full);
-    if (!info.isFile()) return false;
-    const ext = extname(full);
-    const isHtml = ext === '.html';
-    res.writeHead(200, {
-      'content-type': MIME[ext] || 'application/octet-stream',
-      'content-length': info.size,
-      // HTML and the service worker must always be fresh; assets can be cached briefly.
-      'cache-control': isHtml || file === 'sw.js' ? 'no-cache' : 'public, max-age=3600',
-    });
-    if (req.method === 'HEAD') res.end();
-    else createReadStream(full).pipe(res);
-    return true;
+    entry = await loadStatic(full);
   } catch {
     return false;
   }
+  if (!entry) return false;
+  const ext = extname(full);
+  const headers = {
+    'content-type': MIME[ext] || 'application/octet-stream',
+    etag: entry.etag,
+    vary: 'Accept-Encoding',
+    // Always re-check with the server (cheap 304s) so a new deploy shows up at once.
+    'cache-control': 'no-cache',
+  };
+  if (req.headers['if-none-match'] === entry.etag) {
+    res.writeHead(304, headers);
+    res.end();
+    return true;
+  }
+  const body = entry.gz && acceptsGzip(req) ? entry.gz : entry.raw;
+  if (body === entry.gz) headers['content-encoding'] = 'gzip';
+  headers['content-length'] = body.length;
+  res.writeHead(200, headers);
+  res.end(req.method === 'HEAD' ? undefined : body);
+  return true;
 }
 
 /** Builds the request handler. The store is injected so tests can use an in-memory one. */
@@ -77,6 +110,7 @@ export function createApp(store) {
     for (const [k, val] of Object.entries(SECURITY_HEADERS)) res.setHeader(k, val);
     if (config.isProduction) res.setHeader('strict-transport-security', 'max-age=31536000; includeSubDomains');
 
+    res.acceptsGzip = acceptsGzip(req);
     const url = new URL(req.url, 'http://localhost');
     const { pathname } = url;
 
@@ -100,6 +134,7 @@ export function createApp(store) {
 
         let result;
         for (const fn of found.route.handlers) result = await fn(ctx);
+        if (req.method !== 'GET' && ctx.circle) publish(ctx.circle.id); // refresh other open screens
         if (result === undefined) return; // handler streamed its own response
         if (result && typeof result.status === 'number' && 'data' in result) sendJson(res, result.status, result.data);
         else sendJson(res, 200, result);

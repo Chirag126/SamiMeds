@@ -1,4 +1,4 @@
-import { Router, HttpError, readJson, cookie, isHttps, clientIp } from '../http.js';
+import { Router, HttpError, cookie, isHttps, clientIp } from '../http.js';
 import { config } from '../config.js';
 import { C } from '../store/index.js';
 import { v, validate } from '../services/validate.js';
@@ -9,8 +9,10 @@ import {
 import { isValidTimezone, addDays, formatTime12 } from '../services/time.js';
 import { markTaken, markSnoozed, undoTaken, ESCALATION } from '../services/doses.js';
 import { adjustStock, daysLeft, needsRefill, DEFAULT_REFILL_DAYS } from '../services/refill.js';
-import { parseMedicine, geminiEnabled } from '../services/gemini.js';
-import { savePhoto, loadPhoto, deletePhoto } from '../services/photos.js';
+import { parseMedicine, geminiEnabled, scanPrescription } from '../services/gemini.js';
+import { savePhoto, loadPhoto, deletePhoto, decodeDataUrl } from '../services/photos.js';
+import { subscribe } from '../services/events.js';
+import { pushEnabled, saveSubscription, removeSubscription, sendPush } from '../services/push.js';
 import { sendEmail, emailEnabled } from '../services/email.js';
 import {
   nowFor, circleMembers, publicMember, familyEmails, logActivity, buildToday, buildStats,
@@ -23,6 +25,9 @@ export const SESSION_COOKIE = 'sm_sid';
 const COLORS = ['white', 'yellow', 'orange', 'pink', 'red', 'blue', 'green', 'purple', 'brown'];
 const SHAPES = ['round', 'oval', 'capsule', 'liquid', 'drops', 'injection', 'inhaler'];
 const MOODS = ['good', 'okay', 'unwell'];
+
+const proofId = (doseId) => `proof_${doseId}`;
+const SCAN_MAX_BYTES = 650 * 1024;
 
 const loginLimiter = new RateLimiter({ limit: 30, windowMs: 15 * 60_000 });
 
@@ -211,13 +216,13 @@ export function buildApi() {
     const members = await circleMembers(ctx.store, ctx.circle.id);
     return {
       member: publicMember(ctx.member),
-      permissions: Object.fromEntries(['manageCare', 'skipDose', 'settings', 'manageMembers'].map((p) => [p, can(ctx.member.role, p)])),
+      permissions: Object.fromEntries(['manageCare', 'skipDose', 'settings', 'manageMembers', 'verifyProof'].map((p) => [p, can(ctx.member.role, p)])),
       circle: {
         code: ctx.circle.code, elderName: ctx.circle.elderName, timezone: ctx.circle.timezone,
         emergencyPhone: ctx.circle.emergencyPhone, emergencyName: ctx.circle.emergencyName,
       },
       members: members.map(publicMember),
-      features: { gemini: geminiEnabled(), email: emailEnabled() },
+      features: { gemini: geminiEnabled(), email: emailEnabled(), push: pushEnabled() },
     };
   });
 
@@ -225,16 +230,69 @@ export function buildApi() {
 
   r.get('/api/today', auth, async (ctx) => buildToday(ctx.store, ctx.circle));
 
-  r.post('/api/doses/:id/take', auth, allow('takeDose'), async (ctx) => {
-    const dose = await owned(ctx, C.doses, ctx.params.id);
-    if (dose.status === 'taken') return { dose };
+  /** Marks a dose taken, updates stock, and tells the rest of the circle. */
+  async function takeDose(ctx, dose) {
+    if (dose.status === 'taken') return dose;
     const now = nowFor(ctx.circle);
     const updated = markTaken(dose, { nowEpoch: now.epoch, at: new Date().toISOString(), by: ctx.member.name });
     await ctx.store.put(C.doses, updated);
     const med = await ctx.store.get(C.medicines, dose.medicineId);
     if (med) await ctx.store.put(C.medicines, adjustStock(med, -1));
-    if (ctx.member.role !== 'elderly') {
-      await logActivity(ctx.store, { circleId: ctx.circle.id, actor: ctx.member, action: 'dose-taken', detail: `Marked ${med?.name || 'dose'} (${formatTime12(dose.time)}) as taken` });
+    const name = med?.name || dose.medicineName || 'medicine';
+    if (ctx.member.role === 'elderly') {
+      await sendPush(ctx.store, ctx.circle.id, {
+        roles: ['family', 'caretaker'], title: `✅ ${ctx.circle.elderName} took ${name}`,
+        body: `${formatTime12(dose.time)} dose marked as taken.`, url: '/family', tag: `taken-${dose.id}`,
+      });
+    } else {
+      await logActivity(ctx.store, { circleId: ctx.circle.id, actor: ctx.member, action: 'dose-taken', detail: `Marked ${name} (${formatTime12(dose.time)}) as taken` });
+    }
+    return updated;
+  }
+
+  r.post('/api/doses/:id/take', auth, allow('takeDose'), async (ctx) => {
+    const dose = await owned(ctx, C.doses, ctx.params.id);
+    return { dose: await takeDose(ctx, dose) };
+  });
+
+  /* ---- photo proof: the elder sends a photo, family verifies it, the caretaker sees the result */
+
+  r.put('/api/doses/:id/proof', auth, allow('takeDose'), async (ctx) => {
+    const dose = await takeDose(ctx, await owned(ctx, C.doses, ctx.params.id));
+    await savePhoto(ctx.store, ctx.circle.id, proofId(dose.id), ctx.body?.dataUrl);
+    const updated = { ...dose, proof: { status: 'pending', at: new Date().toISOString(), by: ctx.member.name, version: Date.now() } };
+    await ctx.store.put(C.doses, updated);
+    await sendPush(ctx.store, ctx.circle.id, {
+      roles: ['family'], exceptMemberId: ctx.member.id, title: `📷 ${ctx.member.name} sent a medicine photo`,
+      body: `${dose.medicineName || 'Medicine'} (${formatTime12(dose.time)}) – tap to check it.`, url: '/family', tag: `proof-${dose.id}`,
+    });
+    return { dose: updated };
+  });
+
+  r.get('/api/doses/:id/proof', auth, async (ctx) => {
+    const dose = await owned(ctx, C.doses, ctx.params.id);
+    const photo = dose.proof ? await loadPhoto(ctx.store, ctx.circle.id, proofId(dose.id)) : null;
+    if (!photo) throw new HttpError(404, 'No photo');
+    ctx.res.writeHead(200, { 'content-type': photo.contentType, 'cache-control': 'private, max-age=3600', 'x-content-type-options': 'nosniff' });
+    ctx.res.end(photo.buf);
+    return undefined;
+  });
+
+  r.post('/api/doses/:id/verify', auth, allow('verifyProof'), async (ctx) => {
+    const dose = await owned(ctx, C.doses, ctx.params.id);
+    if (!dose.proof) throw new HttpError(409, 'There is no photo to check for this dose');
+    const { ok } = validate({ ok: v.bool() }, ctx.body);
+    const proof = { ...dose.proof, status: ok ? 'verified' : 'rejected', verifiedBy: ctx.member.name, verifiedAt: new Date().toISOString() };
+    const updated = { ...dose, proof };
+    await ctx.store.put(C.doses, updated);
+    const what = `${dose.medicineName || 'medicine'} (${formatTime12(dose.time)})`;
+    await logActivity(ctx.store, { circleId: ctx.circle.id, actor: ctx.member, action: 'proof-checked', detail: ok ? `Checked the photo for ${what}: looks right ✅` : `Checked the photo for ${what}: needs a second look ⚠️` });
+    await sendPush(ctx.store, ctx.circle.id, {
+      roles: ['caretaker'], title: ok ? `✅ ${ctx.member.name} verified ${what}` : `⚠️ ${ctx.member.name}: please check ${what}`,
+      body: ok ? `${ctx.circle.elderName}'s photo was checked.` : `The photo from ${ctx.circle.elderName} did not look right.`, url: '/family', tag: `verify-${dose.id}`,
+    });
+    if (ok) {
+      await sendPush(ctx.store, ctx.circle.id, { roles: ['elderly'], title: `👍 ${ctx.member.name} saw your photo`, body: 'Well done for taking your medicine!', url: '/elder', tag: `verify-${dose.id}` });
     }
     return { dose: updated };
   });
@@ -255,8 +313,9 @@ export function buildApi() {
     if (dose.status !== 'taken') throw new HttpError(409, 'This dose is not marked as taken');
     const minutesSince = (Date.now() - Date.parse(dose.takenAt)) / 60_000;
     if (ctx.member.role === 'elderly' && minutesSince > 30) throw new HttpError(403, 'Please ask family to change this');
-    const updated = undoTaken(dose, nowFor(ctx.circle).epoch);
+    const updated = { ...undoTaken(dose, nowFor(ctx.circle).epoch), proof: null };
     await ctx.store.put(C.doses, updated);
+    if (dose.proof) await deletePhoto(ctx.store, ctx.circle.id, proofId(dose.id));
     const med = await ctx.store.get(C.medicines, dose.medicineId);
     if (med) await ctx.store.put(C.medicines, adjustStock(med, +1));
     return { dose: updated };
@@ -534,6 +593,53 @@ export function buildApi() {
     for (const s of sessions) await ctx.store.del(C.sessions, s.id);
     await logActivity(ctx.store, { circleId: ctx.circle.id, actor: ctx.member, action: 'member-removed', detail: `Removed ${target.name}`, forElderly: true });
     return { ok: true };
+  });
+
+  /* ---- AI: read a prescription photo */
+
+  r.post('/api/ai/scan-prescription', auth, allow('manageCare'), async (ctx) => {
+    if (!loginLimiter.allow(`scan:${ctx.member.id}`)) throw new HttpError(429, 'Please slow down');
+    const image = decodeDataUrl(ctx.body?.dataUrl, SCAN_MAX_BYTES);
+    try {
+      return { medicines: await scanPrescription(image) };
+    } catch (err) {
+      if (err.status === 503) throw new HttpError(503, err.message);
+      console.warn('[gemini] prescription scan failed:', err.message);
+      throw new HttpError(502, 'Could not read that photo. Please try a clearer picture, or add the medicine by hand.');
+    }
+  });
+
+  /* ---- live sync: open screens are told when something in their circle changes */
+
+  r.get('/api/events', auth, async (ctx) => {
+    ctx.res.writeHead(200, {
+      'content-type': 'text/event-stream', 'cache-control': 'no-cache, no-transform', connection: 'keep-alive', 'x-accel-buffering': 'no',
+    });
+    ctx.res.write('retry: 4000\n\n');
+    subscribe(ctx.circle.id, ctx.res);
+    return undefined;
+  });
+
+  /* ---- phone notifications (Web Push) */
+
+  r.get('/api/push/key', auth, async () => ({ enabled: pushEnabled(), publicKey: config.vapid.publicKey }));
+
+  r.post('/api/push/subscribe', auth, async (ctx) => {
+    if (!pushEnabled()) throw new HttpError(503, 'Notifications are not set up on this server');
+    await saveSubscription(ctx.store, ctx.member, ctx.body?.subscription);
+    return { status: 201, data: { ok: true } };
+  });
+
+  r.post('/api/push/unsubscribe', auth, async (ctx) => {
+    await removeSubscription(ctx.store, ctx.member, ctx.body?.endpoint);
+    return { ok: true };
+  });
+
+  r.post('/api/push/test', auth, async (ctx) => {
+    const sent = await sendPush(ctx.store, ctx.circle.id, {
+      memberId: ctx.member.id, title: '🔔 SamiMeds notifications are on', body: `Hello ${ctx.member.name}! Reminders will arrive like this.`, url: '/',
+    });
+    return { sent };
   });
 
   /* ---- scheduler (Cloud Scheduler → POST /api/cron/tick) */

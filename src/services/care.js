@@ -9,6 +9,7 @@ import { daysLeft, needsRefill } from './refill.js';
 import { evaluateAppointment, plainSpecialty } from './appointments.js';
 import { googleCalendarLink } from './calendar.js';
 import { sendEmail } from './email.js';
+import { publish } from './events.js';
 
 export const nowFor = (circle, date = new Date()) => localParts(date, circle.timezone);
 
@@ -300,6 +301,7 @@ export async function runCircleTick(store, circle, at = new Date()) {
     const { updates, actions } = evaluateDose(dose, now.epoch);
     if (!Object.keys(updates).length) continue;
     await store.put(C.doses, { ...dose, ...updates });
+    if (updates.status) publish(circle.id);
     for (const action of actions) {
       const med = medsById.get(dose.medicineId);
       const mail = doseEmail(action, dose, med, circle);

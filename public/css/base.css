@@ -150,3 +150,9 @@ dialog::backdrop { background: rgba(43, 33, 24, 0.45); backdrop-filter: blur(2px
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
 }
+
+/* ---------- language switch, photo proof, notifications */
+.lang-slot { margin-left: auto; }
+.push-card { background: #fff; border-radius: 20px; padding: 16px; box-shadow: var(--shadow-sm); display: grid; gap: 10px; }
+.push-card h3 { font-size: 1.05rem; }
+.push-card .row-btns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
