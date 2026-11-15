@@ -28,14 +28,14 @@ export async function seedDemo(store, at = new Date()) {
   const iso = at.toISOString();
   const circle = {
     id: 'c_demo', code: DEMO.code, elderName: 'Kamla Devi', timezone: tz,
-    emergencyPhone: '+919876543210', emergencyName: 'Priya', createdAt: iso, lastWeeklySummary: null,
+    emergencyPhone: config.demo.familyPhone, emergencyName: 'Chirag', createdAt: iso, lastWeeklySummary: null,
   };
   await store.put(C.circles, circle);
 
   const members = [
-    { name: 'Kamla Devi', role: 'elderly', relation: '', email: 'kamla@example.com', phone: '', pin: DEMO.pins.elderly },
-    { name: 'Priya', role: 'family', relation: 'Daughter', email: 'priya@example.com', phone: '+919876543210', pin: DEMO.pins.family },
-    { name: 'Ravi', role: 'caretaker', relation: 'Nurse', email: 'ravi@example.com', phone: '+919812345678', pin: DEMO.pins.caretaker },
+    { name: 'Kamla Devi', role: 'elderly', relation: '', email: config.demo.elderEmail, phone: '', pin: DEMO.pins.elderly },
+    { name: 'Chirag', role: 'family', relation: 'Son', email: config.demo.familyEmail, phone: config.demo.familyPhone, pin: DEMO.pins.family },
+    { name: 'Anjali', role: 'caretaker', relation: 'Nurse', email: config.demo.caretakerEmail, phone: config.demo.caretakerPhone, pin: DEMO.pins.caretaker },
   ];
   for (const m of members) {
     const { pin, ...rest } = m;
@@ -55,7 +55,7 @@ export async function seedDemo(store, at = new Date()) {
     { name: 'Eye drops', dose: '', pillDescription: '1 drop in each eye', purpose: 'For dry eyes', instructions: 'tilt head back gently', times: [soonTime], color: 'blue', shape: 'drops', stock: null, startToday: true },
   ].map((m, i) => ({
     id: `med_demo_${i}`, circleId: circle.id, ...m, pillsPerDose: 1, refillThresholdDays: 5, active: true, hasPhoto: false,
-    refillAlertSent: false, startEpoch: m.startToday ? now.epoch - 30 : startEpoch, createdAt: iso, updatedAt: iso, createdBy: 'Priya',
+    refillAlertSent: false, startEpoch: m.startToday ? now.epoch - 30 : startEpoch, createdAt: iso, updatedAt: iso, createdBy: 'Chirag',
   }));
   for (const m of meds) {
     const { startToday, ...doc } = m;
@@ -96,25 +96,25 @@ export async function seedDemo(store, at = new Date()) {
   await store.put(C.appointments, {
     id: 'ap_demo_1', circleId: circle.id, doctor: 'Dr. Sharma', specialty: 'Cardiology', date: addDays(now.date, 1), time: '11:00',
     location: 'City Heart Clinic, MG Road', notes: 'Routine BP check-up', checklist: ['BP diary', 'Old reports', 'Reading glasses', 'Medicine list'],
-    checklistDone: [false, false, false, false], status: 'upcoming', dayBeforeSent: true, morningSent: false, createdAt: iso, createdBy: 'Priya',
+    checklistDone: [false, false, false, false], status: 'upcoming', dayBeforeSent: true, morningSent: false, createdAt: iso, createdBy: 'Chirag',
   });
   await store.put(C.appointments, {
     id: 'ap_demo_2', circleId: circle.id, doctor: 'Dr. Mehta', specialty: 'Ophthalmology', date: addDays(now.date, 10), time: '16:30',
     location: 'Vision Eye Care, Station Road', notes: 'Eye pressure check', checklist: ['Spectacles', 'Eye drops'],
-    checklistDone: [false, false], status: 'upcoming', dayBeforeSent: false, morningSent: false, createdAt: iso, createdBy: 'Ravi',
+    checklistDone: [false, false], status: 'upcoming', dayBeforeSent: false, morningSent: false, createdAt: iso, createdBy: 'Anjali',
   });
   await store.put(C.appointments, {
     id: 'ap_demo_0', circleId: circle.id, doctor: 'Dr. Iyer', specialty: 'General physician', date: addDays(now.date, -5), time: '10:00',
     location: 'Family Clinic', notes: 'Sugar test reviewed – all fine', checklist: [], checklistDone: [], status: 'done',
-    dayBeforeSent: true, morningSent: true, createdAt: iso, createdBy: 'Priya',
+    dayBeforeSent: true, morningSent: true, createdAt: iso, createdBy: 'Chirag',
   });
 
   await store.put(C.activity, {
-    id: newId('a_'), circleId: circle.id, at: iso, actorName: 'Priya', actorRole: 'family', action: 'medicine-added',
+    id: newId('a_'), circleId: circle.id, at: iso, actorName: 'Chirag', actorRole: 'family', action: 'medicine-added',
     detail: 'Added Calcium + Vitamin D 500 mg at 2:00 PM', forElderly: true, ack: null,
   });
   await store.put(C.activity, {
-    id: newId('a_'), circleId: circle.id, at: new Date(at.getTime() - 3_600_000).toISOString(), actorName: 'Ravi', actorRole: 'caretaker',
+    id: newId('a_'), circleId: circle.id, at: new Date(at.getTime() - 3_600_000).toISOString(), actorName: 'Anjali', actorRole: 'caretaker',
     action: 'appointment-added', detail: `Booked Dr. Mehta on ${addDays(now.date, 10)} at 4:30 PM`, forElderly: true, ack: 'ok',
   });
 

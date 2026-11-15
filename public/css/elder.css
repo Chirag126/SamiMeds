@@ -43,7 +43,7 @@ body.t-night .hero { color: #fff; }
 .round-btn span { font-size: 0.7em; vertical-align: super; }
 
 /* ---------- panels */
-.panel { padding: 0 14px; margin-top: -26px; position: relative; display: grid; gap: 16px; max-width: 640px; margin-inline: auto; }
+.panel { grid-template-columns: minmax(0, 1fr); padding: 0 14px; margin-top: -26px; position: relative; display: grid; gap: 16px; max-width: 640px; margin-inline: auto; }
 .panel:focus { outline: none; }
 .panel-title { font-size: 1.25rem; font-weight: 900; margin: 8px 4px -4px; }
 
@@ -68,7 +68,7 @@ body.t-night .hero { color: #fff; }
 }
 .btn-primary.big-btn { box-shadow: inset 0 -5px 0 var(--green-dark); }
 .btn-amber.big-btn { min-height: 64px; font-size: 1.1rem; box-shadow: inset 0 -4px 0 #d9951a; }
-.row-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.row-btns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 
 /* ---------- celebration card */
 .calm-card {
@@ -91,7 +91,7 @@ body.t-night .hero { color: #fff; }
 /* ---------- today list */
 .dose-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .dose-row {
-  display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center;
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center;
   background: #fff; border-radius: 22px; padding: 12px 14px; box-shadow: var(--shadow-sm);
 }
 .dose-row .pill-art, .dose-row .pill-photo { width: 54px; height: 54px; border-radius: 14px; }
@@ -122,7 +122,7 @@ body.t-night .hero { color: #fff; }
 .mini-visit { display: flex; justify-content: space-between; gap: 10px; background: #fff; border-radius: 20px; padding: 14px 16px; box-shadow: var(--shadow-sm); font-weight: 700; }
 
 /* ---------- my day */
-.mood-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.mood-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .mood-btn {
   font: inherit; font-weight: 800; border: 4px solid transparent; border-radius: 26px; background: #fff; cursor: pointer;
   display: grid; justify-items: center; gap: 6px; padding: 16px 6px; min-height: 130px; box-shadow: var(--shadow-sm); color: var(--ink);
@@ -131,7 +131,7 @@ body.t-night .hero { color: #fff; }
 .mood-btn:hover span { transform: scale(1.12); }
 .mood-btn[aria-pressed="true"] { border-color: var(--green); background: var(--green-soft); }
 .mood-btn.unwell[aria-pressed="true"] { border-color: #f2a08f; background: var(--rose-soft); }
-.week-strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; text-align: center; }
+.week-strip { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; text-align: center; }
 .week-strip div { background: #fff; border-radius: 14px; padding: 8px 2px; font-weight: 700; font-size: 0.8rem; box-shadow: var(--shadow-sm); }
 .week-strip span { display: block; font-size: 1.5rem; }
 .tip-card { background: linear-gradient(135deg, #e5effb, #f3ecff); border-radius: 26px; padding: 18px; display: flex; gap: 14px; align-items: center; }
@@ -148,7 +148,7 @@ body.t-night .hero { color: #fff; }
 .call-btn { justify-content: space-between; min-height: 70px; font-size: 1.1rem; border-radius: 22px; }
 .setting { background: #fff; border-radius: 24px; padding: 16px; box-shadow: var(--shadow-sm); display: grid; gap: 10px; }
 .setting h3 { font-size: 1.1rem; }
-.size-choices { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.size-choices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .size-choices button[aria-pressed="true"] { --bg: var(--green); --fg: #fff; --bd: var(--green); }
 .size-choices .s1 { font-size: 0.95rem; } .size-choices .s2 { font-size: 1.15rem; } .size-choices .s3 { font-size: 1.35rem; }
 .small-links { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
@@ -181,3 +181,22 @@ body.t-night .hero { color: #fff; }
   .hello { font-size: 1.9rem; }
   .panel { margin-top: -30px; }
 }
+
+/* Keep everything inside the screen at the biggest text size */
+.panel > * { min-width: 0; }
+.elder .btn { white-space: normal; overflow-wrap: break-word; text-align: center; }
+html[data-size="xl"] .row-btns, html[data-size="large"] .row-btns { grid-template-columns: minmax(0, 1fr); }
+html[data-size="xl"] .row-btns > span:empty, html[data-size="large"] .row-btns > span:empty { display: none; }
+html[data-size="xl"] .week-strip div { font-size: 0.62rem; padding: 6px 0; }
+html[data-size="xl"] .week-strip span { font-size: 1.1rem; }
+html[data-size="xl"] .mood-btn { padding: 12px 2px; }
+html[data-size="xl"] .mood-btn span { font-size: 2.4rem; }
+@media (max-width: 420px) {
+  html[data-size="xl"] .dose-row { grid-template-columns: auto minmax(0, 1fr); }
+  html[data-size="xl"] .dose-row > :last-child { grid-column: 1 / -1; justify-self: start; }
+}
+.progress-words { min-width: 0; }
+.progress-words .chip { white-space: normal; }
+.bottom-tabs [role="tablist"] { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+html[data-size="xl"] .bottom-tabs [role="tab"] { font-size: 0.62rem; }
+html[data-size="xl"] .ring, html[data-size="xl"] .ring svg { width: 80px; height: 80px; }

@@ -19,7 +19,7 @@ async function boot() {
   // Family members may open this screen too, to see exactly what the elder sees.
   state.me = await api('/api/me');
   const tabs = setupTabs($('tablist'), { onChange: (t) => { state.tab = t; render(); } });
-  window.addEventListener('hashchange', () => tabs.select(location.hash.slice(1)));
+  window.addEventListener('hashchange', () => { if (location.hash.slice(1) !== state.tab) tabs.select(location.hash.slice(1)); });
 
   $('size-btn').addEventListener('click', cycleSize);
   $('speak-all').addEventListener('click', () => speak(screenSpeech(), { rate: state.rate }));

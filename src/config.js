@@ -28,6 +28,17 @@ export const config = Object.freeze({
   collectionPrefix: env.COLLECTION_PREFIX || 'samimeds_',
 
   demoMode: bool(env.DEMO_MODE),
+  /**
+   * Contact details for the demo circle's people. Kept in the environment,
+   * not in the code, so real emails and phone numbers never land in the public repo.
+   */
+  demo: {
+    elderEmail: env.DEMO_ELDER_EMAIL || '',
+    familyEmail: env.DEMO_FAMILY_EMAIL || '',
+    familyPhone: env.DEMO_FAMILY_PHONE || '',
+    caretakerEmail: env.DEMO_CARETAKER_EMAIL || '',
+    caretakerPhone: env.DEMO_CARETAKER_PHONE || '',
+  },
   defaultTimezone: env.DEFAULT_TIMEZONE || 'Asia/Kolkata',
   // Render sets RENDER_EXTERNAL_URL automatically.
   publicUrl: (env.PUBLIC_URL || env.RENDER_EXTERNAL_URL || '').replace(/\/$/, ''),

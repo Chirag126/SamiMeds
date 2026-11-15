@@ -21,7 +21,7 @@ Each person signs in with the **care circle code + their own 4–6 digit PIN**, 
 - **I took it**, **Remind me in 15 min** (up to 3 times), and **Undo** for 8 seconds instead of "Are you sure?" pop-ups.
 - **🔊 Read aloud** on every card, using the phone's built-in voice, with a slower speed option.
 - **Text size** control (A / A+ / A++), remembered on the device.
-- **Changes from family** appear as cards: *"Priya added Calcium + Vitamin D"* with **👍 OK** or **❓ I have a question**. A question emails the family. The elder stays in charge of their own care.
+- **Changes from family** appear as cards: *"Chirag added Calcium + Vitamin D"* with **👍 OK** or **❓ I have a question**. A question emails the family. The elder stays in charge of their own care.
 - **🩺 Doctor tab:** next visit in plain words ("Tomorrow, 11:00 AM — Heart doctor"), a tick-off "things to bring" checklist, and **Add to Google Calendar**.
 - **🌼 My day:** a daily *How are you feeling?* (😊 / 😐 / 😟). "Not well" quietly emails the family and shows a Call button. Also a 7-day mood strip and a gentle daily tip.
 - **📞 Help:** a big red **Call family now** button, one-tap calls to everyone in the circle, and settings.
@@ -96,7 +96,7 @@ npm run dev            # demo mode on http://localhost:8080
 npm test               # 50 unit + API tests (node:test, no extra packages)
 ```
 
-Demo circle code **`DEMO`**: Kamla (elder) `2580` · Priya (daughter) `1357` · Ravi (nurse) `2468`.
+Demo circle code **`DEMO`**: Kamla (elder) `2580` · Chirag (son) `1357` · Anjali (nurse) `2468`.
 The sign-in page also has one-tap demo buttons.
 
 ### 🔑 Keys & secrets
