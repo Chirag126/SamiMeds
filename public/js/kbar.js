@@ -249,7 +249,7 @@ export function setupKeyboardBar({ providers = {}, onIntent } = {}) {
     const key = fieldKey(el);
     const intent = wrongPlace(key, el.value);
     const holder = el.closest('.field, fieldset, .ai-box') || el;
-    let hint = holder.nextElementSibling?.classList.contains('intent-hint') ? holder.nextElementSibling : null;
+    const hint = holder.nextElementSibling?.classList.contains('intent-hint') ? holder.nextElementSibling : null;
     if (!intent || el.dataset.intentDismissed === intent) {
       hint?.remove();
       return;
