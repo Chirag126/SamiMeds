@@ -1,0 +1,5 @@
+#!/bin/sh
+# Blocks commits that contain API keys, passwords or .env files.
+# Enabled automatically by `npm install` (see "prepare" in package.json),
+# or manually with: git config core.hooksPath .githooks
+node scripts/check-secrets.mjs

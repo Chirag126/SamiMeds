@@ -1,7 +1,7 @@
 {
   "name": "samimeds",
   "version": "1.0.0",
-  "description": "SamiMeds – a warm, simple medication & care platform for elderly people, their family and caretakers.",
+  "description": "SamiMeds \u2013 a warm, simple medication & care platform for elderly people, their family and caretakers.",
   "type": "module",
   "main": "src/server.js",
   "engines": {
@@ -11,7 +11,9 @@
     "start": "node src/server.js",
     "dev": "DEMO_MODE=true node --watch src/server.js",
     "test": "node --test \"test/**/*.test.js\"",
-    "seed": "DEMO_MODE=true node src/seed-cli.js"
+    "seed": "DEMO_MODE=true node src/seed-cli.js",
+    "check:secrets": "node scripts/check-secrets.mjs --all",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "dependencies": {
     "@google-cloud/firestore": "^7.11.0",
