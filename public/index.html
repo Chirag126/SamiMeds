@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1c7a4b">
+  <meta name="description" content="SamiMeds – simple medicine reminders and shared care for elderly people and their families.">
+  <title>SamiMeds – Sign in</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/login.css">
+  <script type="module" src="/js/login.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to sign in</a>
+  <div class="sky" aria-hidden="true"><span class="sun"></span><span class="cloud c1"></span><span class="cloud c2"></span></div>
+
+  <header class="brand">
+    <div class="logo" aria-hidden="true">💊</div>
+    <div>
+      <h1>SamiMeds</h1>
+      <p>Care that remembers, so you don't have to.</p>
+    </div>
+  </header>
+
+  <main id="main" class="login-main">
+    <div class="card login-card">
+      <div class="seg" role="tablist" aria-label="Sign in or create">
+        <button role="tab" id="tab-signin" aria-controls="panel-signin" data-tab="signin" type="button">Sign in</button>
+        <button role="tab" id="tab-setup" aria-controls="panel-setup" data-tab="setup" type="button">New care circle</button>
+      </div>
+
+      <!-- SIGN IN -->
+      <section id="panel-signin" role="tabpanel" aria-labelledby="tab-signin">
+        <div id="demo-box" class="demo" hidden>
+          <p class="demo-title">👋 Try the demo – tap a person</p>
+          <div class="demo-people">
+            <button class="person" type="button" data-pin="2580"><span aria-hidden="true">👵</span><b>Kamla</b><small>Elder · PIN 2580</small></button>
+            <button class="person" type="button" data-pin="1357"><span aria-hidden="true">👩</span><b>Priya</b><small>Daughter · PIN 1357</small></button>
+            <button class="person" type="button" data-pin="2468"><span aria-hidden="true">🧑‍⚕️</span><b>Ravi</b><small>Nurse · PIN 2468</small></button>
+          </div>
+        </div>
+
+        <form id="signin-form" novalidate>
+          <div id="code-known" class="welcome" hidden>
+            <p>Welcome back to</p>
+            <p class="welcome-name" id="welcome-name"></p>
+            <button type="button" class="btn btn-ghost btn-sm" id="change-code">Not your circle? Change</button>
+          </div>
+          <label class="field" id="code-field">
+            <span>Care circle code</span>
+            <input id="code" name="code" autocomplete="username" autocapitalize="characters" spellcheck="false" maxlength="12" placeholder="K7P2MX" required>
+            <small>It's on the card your family gave you.</small>
+          </label>
+
+          <label class="field pin-label" for="pin"><span>Your PIN</span></label>
+          <div class="pin-dots" aria-hidden="true" id="pin-dots"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          <input id="pin" class="pin-input" name="pin" type="password" inputmode="numeric" pattern="[0-9]*" autocomplete="current-password" maxlength="6" required aria-describedby="signin-error">
+
+          <div class="keypad" role="group" aria-label="Number keypad">
+            <button type="button" data-key="1">1</button><button type="button" data-key="2">2</button><button type="button" data-key="3">3</button>
+            <button type="button" data-key="4">4</button><button type="button" data-key="5">5</button><button type="button" data-key="6">6</button>
+            <button type="button" data-key="7">7</button><button type="button" data-key="8">8</button><button type="button" data-key="9">9</button>
+            <button type="button" data-key="back" aria-label="Delete last digit">⌫</button><button type="button" data-key="0">0</button>
+            <button type="submit" class="go" aria-label="Sign in">➜</button>
+          </div>
+
+          <label class="check"><input type="checkbox" id="remember" checked> Remember this phone</label>
+          <p class="form-error" id="signin-error" role="alert"></p>
+        </form>
+      </section>
+
+      <!-- SETUP -->
+      <section id="panel-setup" role="tabpanel" aria-labelledby="tab-setup" hidden>
+        <form id="setup-form" novalidate>
+          <h2 class="step-title"><span aria-hidden="true">👵</span> Who are we caring for?</h2>
+          <label class="field"><span>Their name</span><input name="elderName" required maxlength="60" autocomplete="off" placeholder="e.g. Kamla Devi"></label>
+          <div class="grid-2">
+            <label class="field"><span>Their PIN (4–6 digits)</span><input name="elderPin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" required autocomplete="new-password"><small>Something easy for them, like a birth year.</small></label>
+            <label class="field"><span>Their email <small>(optional)</small></span><input name="elderEmail" type="email" autocomplete="off" placeholder="for their own reminders"></label>
+          </div>
+
+          <h2 class="step-title"><span aria-hidden="true">👩</span> About you</h2>
+          <div class="grid-2">
+            <label class="field"><span>Your name</span><input name="familyName" required maxlength="60" autocomplete="name"></label>
+            <label class="field"><span>Relation</span><input name="familyRelation" maxlength="40" placeholder="Daughter, son, nurse…"></label>
+            <label class="field"><span>Your email</span><input name="familyEmail" type="email" required autocomplete="email"><small>Missed-dose alerts go here.</small></label>
+            <label class="field"><span>Your phone</span><input name="familyPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+91…"><small>For their big “Call” button.</small></label>
+            <label class="field"><span>Your PIN (4–6 digits)</span><input name="familyPin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="6" required autocomplete="new-password"></label>
+            <label class="field"><span>Time zone</span><select name="timezone" id="tz"></select></label>
+          </div>
+          <p class="form-error" id="setup-error" role="alert"></p>
+          <button class="btn btn-primary btn-block" type="submit">Create care circle ✨</button>
+        </form>
+
+        <div id="setup-done" class="done" hidden tabindex="-1">
+          <p class="big-emoji" aria-hidden="true">🎉</p>
+          <h2>Your care circle is ready!</h2>
+          <p>Write this code down for <b id="done-name"></b>. Everyone in the family uses it with their own PIN.</p>
+          <p class="code-big" id="done-code"></p>
+          <a class="btn btn-primary btn-block" href="/family">Open the family dashboard</a>
+        </div>
+      </section>
+    </div>
+    <p class="foot">🔒 PINs are encrypted. Only people in the circle can see the care details.</p>
+  </main>
+</body>
+</html>

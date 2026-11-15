@@ -1,0 +1,22 @@
+{
+  "name": "samimeds",
+  "version": "1.0.0",
+  "description": "SamiMeds – a warm, simple medication & care platform for elderly people, their family and caretakers.",
+  "type": "module",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "DEMO_MODE=true node --watch src/server.js",
+    "test": "node --test \"test/**/*.test.js\"",
+    "seed": "DEMO_MODE=true node src/seed-cli.js"
+  },
+  "dependencies": {
+    "@google-cloud/firestore": "^7.11.0",
+    "@google-cloud/storage": "^7.15.0",
+    "nodemailer": "^6.9.16"
+  },
+  "license": "MIT"
+}

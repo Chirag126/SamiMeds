@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#1c7a4b">
+  <title>SamiMeds – Family dashboard</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <link rel="stylesheet" href="/css/base.css">
+  <link rel="stylesheet" href="/css/family.css">
+  <script type="module" src="/js/family.js"></script>
+</head>
+<body class="family">
+  <a class="skip-link" href="#content">Skip to content</a>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a class="brand" href="/family" aria-label="SamiMeds home"><span aria-hidden="true">💊</span> SamiMeds</a>
+      <div class="circle-info">
+        <h1 id="circle-title">Care circle</h1>
+        <p id="circle-sub"></p>
+      </div>
+      <div class="top-actions">
+        <a class="btn btn-sm btn-soft" href="/elder" id="elder-view-link">👵 Elder's screen</a>
+        <button class="btn btn-sm" type="button" id="logout">Sign out</button>
+      </div>
+    </div>
+    <nav class="tabs-wrap" aria-label="Dashboard sections">
+      <div role="tablist" class="tabs" id="tablist" aria-label="Dashboard sections">
+        <button role="tab" id="tab-overview" aria-controls="panel-overview" data-tab="overview" type="button">🏠 Overview</button>
+        <button role="tab" id="tab-medicines" aria-controls="panel-medicines" data-tab="medicines" type="button">💊 Medicines</button>
+        <button role="tab" id="tab-visits" aria-controls="panel-visits" data-tab="visits" type="button">🩺 Visits</button>
+        <button role="tab" id="tab-history" aria-controls="panel-history" data-tab="history" type="button">📈 History</button>
+        <button role="tab" id="tab-alerts" aria-controls="panel-alerts" data-tab="alerts" type="button">🔔 Alerts</button>
+        <button role="tab" id="tab-circle" aria-controls="panel-circle" data-tab="circle" type="button">👪 Circle</button>
+        <button role="tab" id="tab-reports" aria-controls="panel-reports" data-tab="reports" type="button">📄 Reports</button>
+      </div>
+    </nav>
+  </header>
+
+  <main id="content" tabindex="-1">
+    <section id="panel-overview" role="tabpanel" aria-labelledby="tab-overview" class="panel"><div class="spinner" role="progressbar" aria-label="Loading"></div></section>
+    <section id="panel-medicines" role="tabpanel" aria-labelledby="tab-medicines" class="panel" hidden></section>
+    <section id="panel-visits" role="tabpanel" aria-labelledby="tab-visits" class="panel" hidden></section>
+    <section id="panel-history" role="tabpanel" aria-labelledby="tab-history" class="panel" hidden></section>
+    <section id="panel-alerts" role="tabpanel" aria-labelledby="tab-alerts" class="panel" hidden></section>
+    <section id="panel-circle" role="tabpanel" aria-labelledby="tab-circle" class="panel" hidden></section>
+    <section id="panel-reports" role="tabpanel" aria-labelledby="tab-reports" class="panel" hidden></section>
+  </main>
+
+  <!-- Medicine form -->
+  <dialog id="med-dialog" aria-labelledby="med-dialog-title">
+    <form id="med-form" method="dialog" novalidate>
+      <div class="dialog-head">
+        <h2 id="med-dialog-title">Add medicine</h2>
+        <button class="btn btn-ghost btn-sm" type="button" data-close aria-label="Close">✕</button>
+      </div>
+      <div class="dialog-body">
+        <div class="ai-box" id="ai-box">
+          <label class="field">
+            <span>✨ Quick add – just describe it</span>
+            <textarea id="ai-text" rows="2" maxlength="500" placeholder="e.g. Metformin 500mg 1 tablet twice a day after food, 60 tablets"></textarea>
+          </label>
+          <div class="ai-row">
+            <button class="btn btn-soft btn-sm" type="button" id="ai-fill">✨ Fill the form for me</button>
+            <span class="ai-note" id="ai-note" aria-live="polite"></span>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <label class="field"><span>Medicine name *</span><input name="name" required maxlength="80"></label>
+          <label class="field"><span>Strength</span><input name="dose" maxlength="40" placeholder="5 mg"></label>
+          <label class="field"><span>What to take each time</span><input name="pillDescription" maxlength="60" placeholder="1 white tablet"><small>Shown big on the elder's screen.</small></label>
+          <label class="field"><span>What it's for (simple words)</span><input name="purpose" maxlength="80" placeholder="For blood pressure"></label>
+        </div>
+        <label class="field"><span>How to take it</span><input name="instructions" maxlength="120" placeholder="after breakfast, with water"></label>
+
+        <fieldset class="field">
+          <legend>Times each day *</legend>
+          <div class="times" id="times"></div>
+          <button class="btn btn-sm" type="button" id="add-time">＋ Add a time</button>
+        </fieldset>
+
+        <div class="grid-2">
+          <fieldset class="field">
+            <legend>Colour</legend>
+            <div class="swatches" id="swatches"></div>
+          </fieldset>
+          <label class="field"><span>Type</span>
+            <select name="shape">
+              <option value="round">Round tablet</option><option value="oval">Oval tablet</option><option value="capsule">Capsule</option>
+              <option value="drops">Drops</option><option value="liquid">Syrup / liquid</option><option value="injection">Injection</option><option value="inhaler">Inhaler</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="grid-3">
+          <label class="field"><span>Pills in stock</span><input name="stock" type="number" min="0" max="9999" inputmode="numeric" placeholder="optional"></label>
+          <label class="field"><span>Pills per dose</span><input name="pillsPerDose" type="number" min="0.25" max="10" step="0.25" value="1" inputmode="decimal"></label>
+          <label class="field"><span>Refill alert (days left)</span><input name="refillThresholdDays" type="number" min="1" max="30" value="5" inputmode="numeric"></label>
+        </div>
+
+        <div class="photo-row">
+          <div id="photo-preview" class="photo-preview" aria-hidden="true"></div>
+          <label class="field photo-field">
+            <span>📷 Photo of the pill or strip</span>
+            <input type="file" id="photo" accept="image/*" capture="environment">
+            <small>Elders recognise what a pill looks like more easily than its name.</small>
+          </label>
+        </div>
+        <p class="form-error" id="med-error" role="alert"></p>
+      </div>
+      <div class="dialog-foot">
+        <button class="btn" type="button" data-close>Cancel</button>
+        <button class="btn btn-primary" type="submit">Save medicine</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Appointment form -->
+  <dialog id="visit-dialog" aria-labelledby="visit-dialog-title">
+    <form id="visit-form" method="dialog" novalidate>
+      <div class="dialog-head">
+        <h2 id="visit-dialog-title">Book a doctor visit</h2>
+        <button class="btn btn-ghost btn-sm" type="button" data-close aria-label="Close">✕</button>
+      </div>
+      <div class="dialog-body">
+        <div class="grid-2">
+          <label class="field"><span>Doctor *</span><input name="doctor" required maxlength="80" placeholder="Dr. Sharma"></label>
+          <label class="field"><span>Specialty</span><input name="specialty" maxlength="60" list="specialties" placeholder="Cardiology"></label>
+          <label class="field"><span>Date *</span><input name="date" type="date" required></label>
+          <label class="field"><span>Time *</span><input name="time" type="time" required></label>
+        </div>
+        <label class="field"><span>Where</span><input name="location" maxlength="160" placeholder="Clinic name and address"></label>
+        <label class="field"><span>Things to bring (one per line)</span><textarea name="checklist" rows="3" placeholder="BP diary&#10;Old reports&#10;Glasses"></textarea></label>
+        <label class="field"><span>Notes</span><textarea name="notes" rows="2" maxlength="500"></textarea></label>
+        <p class="form-error" id="visit-error" role="alert"></p>
+      </div>
+      <div class="dialog-foot">
+        <button class="btn" type="button" data-close>Cancel</button>
+        <button class="btn btn-primary" type="submit">Save visit</button>
+      </div>
+    </form>
+  </dialog>
+  <datalist id="specialties">
+    <option value="General physician"><option value="Cardiology"><option value="Endocrinology"><option value="Orthopedics">
+    <option value="Ophthalmology"><option value="Neurology"><option value="Nephrology"><option value="Pulmonology">
+    <option value="Dermatology"><option value="ENT"><option value="Dentist">
+  </datalist>
+</body>
+</html>
