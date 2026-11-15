@@ -197,7 +197,20 @@ async function renderOverview() {
   const missedToday = today.doses.filter((d) => d.status === 'missed');
   const elder = state.me.circle.elderName.split(' ')[0];
 
+  const sos = today.sos;
+  const sosAlert = sos && !sos.respondedAt && h('div', { class: 'alert-item sos-alert', role: 'alert' },
+    h('span', {}, `🆘 ${elder} asked for help`, h('small', { class: 'alert-when' }, ` · ${timeAgo(sos.at)}`)),
+    h('div', { class: 'row-actions' },
+      elderPhone && h('a', { class: 'btn btn-sm', href: `tel:${elderPhone}` }, `📞 Call ${elder}`),
+      can('settings') && h('button', {
+        class: 'btn btn-sm btn-danger', type: 'button',
+        onclick: busy(() => act(api(`/api/sos/${encodeURIComponent(sos.id)}/respond`, { method: 'POST', body: {} }), `${elder} will see that you're on the way 💚`)),
+      }, "🏃 I'm on it")));
+  const sosDone = sos?.respondedAt && h('div', { class: 'alert-item lilac' }, h('span', {}, `💚 ${sos.respondedBy} is responding to ${elder}'s help alert (${timeAgo(sos.respondedAt)}).`));
+
   const alerts = [
+    sosAlert,
+    sosDone,
     ...today.doses.filter((d) => d.proof?.status === 'pending').map(proofCard),
     ...questions.slice(0, 5).map((q) => h('div', { class: 'alert-item lilac' },
       h('span', {}, `❓ ${elder} has a question about: “${q.detail}”`, h('small', { class: 'alert-when' }, ` · ${timeAgo(q.ackAt || q.at)}`)),

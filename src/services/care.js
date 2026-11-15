@@ -143,6 +143,10 @@ export async function buildToday(store, circle) {
     .filter((a) => a.answeredAt && Date.now() - Date.parse(a.answeredAt) < 86_400_000)
     .sort((a, b) => b.answeredAt.localeCompare(a.answeredAt))
     .slice(0, 2);
+  // The latest help alert: shown while open, and for 2 hours after someone responds.
+  const sos = (await store.query(C.activity, [['circleId', '==', circle.id], ['action', '==', 'sos']]))
+    .filter((a) => !a.respondedAt ? Date.now() - Date.parse(a.at) < 12 * 3_600_000 : Date.now() - Date.parse(a.respondedAt) < 2 * 3_600_000)
+    .sort((a, b) => b.at.localeCompare(a.at))[0] || null;
   const updates = forElder
     .filter((a) => !a.ack)
     .sort((a, b) => b.at.localeCompare(a.at))
@@ -167,6 +171,7 @@ export async function buildToday(store, circle) {
     updates,
     openQuestions,
     answered,
+    sos,
     lowStock: meds.filter(needsRefill).map((m) => ({ id: m.id, name: m.name, daysLeft: daysLeft(m) })),
   };
 }

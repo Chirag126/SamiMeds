@@ -45,6 +45,11 @@ export const EXACT = {
   'For thyroid': 'थायरॉइड के लिए', 'For pain': 'दर्द के लिए', 'For acidity': 'एसिडिटी के लिए', 'For strong bones': 'मज़बूत हड्डियों के लिए', 'For sleep': 'नींद के लिए', 'Vitamin': 'विटामिन',
   '1 tablet': '1 गोली', '½ tablet': 'आधी गोली', '2 tablets': '2 गोलियाँ', '1 capsule': '1 कैप्सूल', '1 drop in each eye': 'हर आँख में 1 बूँद', '1 puff': '1 पफ़',
 
+  /* ---------- SOS */
+  'I need help': 'मुझे मदद चाहिए', 'Send a help alert to your family now?': 'क्या अभी परिवार को मदद की सूचना भेजें?', '🆘 Yes, send': '🆘 हाँ, भेजें', 'No': 'नहीं',
+  '🆘 Help alert sent': '🆘 मदद की सूचना भेज दी गई', 'Your family has been told. Someone will respond soon.': 'परिवार को बता दिया गया है। जल्द ही कोई जवाब देगा।',
+  'Help is coming. Stay where you are.': 'मदद आ रही है। जहाँ हैं वहीं रहें।', 'Your family has been alerted 🆘': 'परिवार को सूचना भेज दी गई 🆘', "🏃 I'm on it": '🏃 मैं आ रहा हूँ',
+
   /* ---------- notifications card */
   '🔔 Notifications on this phone': '🔔 इस फ़ोन पर सूचनाएँ',
   'This browser cannot show notifications. On iPhone, first add SamiMeds to the Home Screen.': 'यह ब्राउज़र सूचनाएँ नहीं दिखा सकता। iPhone पर पहले SamiMeds को होम स्क्रीन पर जोड़ें।',
@@ -252,6 +257,9 @@ for (const [en, hi] of Object.entries(MONTHS_SHORT)) {
 for (const day of ['Today', 'Tomorrow', 'Yesterday']) PATTERNS.push([`${day}, {time}`, `${EXACT[day]}, {time}`]);
 
 PATTERNS.push(
+  ['💚 {name} is on the way', '💚 {name} आ रहे हैं'], ['🆘 {name} asked for help', '🆘 {name} ने मदद माँगी'],
+  ["{name} will see that you're on the way 💚", '{name} को दिख जाएगा कि आप आ रहे हैं 💚'],
+  ["💚 {who} is responding to {name}'s help alert ({when}).", '💚 {who}, {name} की मदद की सूचना पर जवाब दे रहे हैं ({when})।'],
   ['You asked about: {what}', 'आपने पूछा था: {what}'], ['About: {what}', 'विषय: {what}'], ['💚 {name} answered your question', '💚 {name} ने आपके सवाल का जवाब दिया'],
   ['✅ Answered by {name}', '✅ {name} ने जवाब दिया'], ['📞 Call {name}', '📞 {name} को फ़ोन करें'], ['{name} will see that you answered 💚', '{name} को दिख जाएगा कि आपने जवाब दे दिया 💚'], [' · {when}', ' · {when}'],
   ['In {n} days, {time}', '{n} दिन में, {time}'], ['{n} min', '{n} मिनट'], ['Dose log for the last {n} days', 'पिछले {n} दिनों का खुराक रिकॉर्ड'],

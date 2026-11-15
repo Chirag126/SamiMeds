@@ -1,7 +1,23 @@
 {
   "name": "samimeds",
   "version": "1.0.0",
-  "description": "SamiMeds \u2013 a warm, simple medication & care platform for elderly people, their family and caretakers.",
+  "description": "SamiMeds: a simple, warm medicine and care platform for elderly people, shared with their family and caretakers.",
+  "keywords": [
+    "elderly-care",
+    "medication-reminder",
+    "caregiver",
+    "accessibility",
+    "pwa",
+    "gemini",
+    "firestore"
+  ],
+  "homepage": "https://samimeds.onrender.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Chirag126/SamiMeds"
+  },
+  "license": "MIT",
+  "author": "Chirag Pardeshi",
   "type": "module",
   "main": "src/server.js",
   "engines": {
@@ -16,7 +32,8 @@
     "prepare": "git config core.hooksPath .githooks || true",
     "lint": "eslint .",
     "push:keys": "node scripts/push-keys.mjs",
-    "check": "npm run lint && npm test && npm run check:secrets"
+    "check": "npm run lint && npm run coverage && npm run check:secrets",
+    "coverage": "node --test --experimental-test-coverage --test-coverage-exclude=\"test/**\" --test-coverage-exclude=\"public/**\" --test-coverage-lines=85 --test-coverage-functions=80 \"test/**/*.test.js\""
   },
   "dependencies": {
     "@google-cloud/firestore": "^7.11.0",
@@ -24,7 +41,6 @@
     "nodemailer": "^10.5.0",
     "web-push": "^3.6.7"
   },
-  "license": "MIT",
   "devDependencies": {
     "eslint": "^9.15.0",
     "@eslint/js": "^9.15.0",
