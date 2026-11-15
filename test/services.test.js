@@ -200,3 +200,46 @@ test('Hindi translation: phrases, patterns and untouched family text', async () 
   assert.equal(toHindi('Amlodipine'), 'Amlodipine');
   assert.equal(toHindi('BP diary, Old reports, Medicine list'), 'BP diary, Old reports, Medicine list');
 });
+
+/* Gmail API email (works where SMTP is blocked) */
+test('Gmail: MIME message is valid and header injection is impossible', async () => {
+  const { buildMime } = await import('../src/services/gmail.js');
+  const mime = buildMime({
+    from: 'SamiMeds <a@gmail.com>', to: ['x@example.com\r\nBcc: evil@example.com'], subject: '💊 Hello\r\nBcc: evil@example.com',
+    text: 'नमस्ते', html: '<p>hi</p>',
+  }, 'B');
+  const headers = mime.split('\r\n\r\n')[0];
+  assert.doesNotMatch(headers, /^Bcc:/m);
+  assert.match(headers, /^Subject: =\?UTF-8\?B\?/m);
+  assert.match(mime, /Content-Type: text\/plain; charset=UTF-8/);
+  const textPart = mime.split('--B')[1].split('\r\n\r\n')[1];
+  assert.equal(Buffer.from(textPart.replace(/\r\n/g, ''), 'base64').toString('utf8'), 'नमस्ते');
+});
+
+test('Gmail: refreshes the token once, then sends with it', async () => {
+  const { config } = await import('../src/config.js');
+  Object.assign(config.gmail, { clientId: 'id', clientSecret: 'secret', refreshToken: 'refresh', from: 'me@gmail.com' });
+  const gmail = await import('../src/services/gmail.js');
+  gmail.resetGmailToken();
+  const calls = [];
+  const fakeFetch = async (url, opts) => {
+    calls.push({ url, opts });
+    if (url.includes('oauth2')) return { ok: true, status: 200, json: async () => ({ access_token: 'tok', expires_in: 3600 }) };
+    return { ok: true, status: 200, json: async () => ({ id: 'msg1' }) };
+  };
+  try {
+    assert.equal(gmail.gmailEnabled(), true);
+    await gmail.sendViaGmail({ to: ['a@b.com'], subject: 'Hi', text: 't', html: 'h' }, fakeFetch);
+    await gmail.sendViaGmail({ to: ['a@b.com'], subject: 'Hi', text: 't', html: 'h' }, fakeFetch);
+    assert.equal(calls.filter((c) => c.url.includes('oauth2')).length, 1);
+    const send = calls.find((c) => c.url.includes('gmail.googleapis.com'));
+    assert.equal(send.opts.headers.authorization, 'Bearer tok');
+    assert.ok(JSON.parse(send.opts.body).raw);
+    gmail.resetGmailToken();
+    const bad = async () => ({ ok: false, status: 400, json: async () => ({ error: 'invalid_grant' }) });
+    await assert.rejects(gmail.sendViaGmail({ to: ['a@b.com'], subject: 'x', text: 't', html: 'h' }, bad), /refresh token expired/);
+  } finally {
+    Object.assign(config.gmail, { clientId: '', clientSecret: '', refreshToken: '' });
+    gmail.resetGmailToken();
+  }
+});

@@ -1,6 +1,6 @@
 import {
   api, h, mount, toast, setupTabs, medicineVisual, relativeDay, shortDate, timeAgo, time12, MOODS,
-  resizeImage, registerServiceWorker, liveSync, pushStatus, pushCard, pickPhoto,
+  resizeImage, registerServiceWorker, liveSync, pushStatus, pushCard, pickPhoto, busy,
 } from './common.js';
 import { startI18n, langButton } from './i18n.js';
 
@@ -90,7 +90,7 @@ function doseStatusChip(d) {
 function doseActions(d) {
   const out = [];
   if ((d.status === 'pending' && d.elapsed >= -60) || d.status === 'missed') {
-    out.push(h('button', { class: 'btn btn-sm btn-primary', type: 'button', onclick: () => act(api(`/api/doses/${encodeURIComponent(d.id)}/take`, { method: 'POST', body: {} }), 'Marked as taken') }, 'Mark taken'));
+    out.push(h('button', { class: 'btn btn-sm btn-primary', type: 'button', onclick: busy(() => act(api(`/api/doses/${encodeURIComponent(d.id)}/take`, { method: 'POST', body: {} }), 'Marked as taken')) }, 'Mark taken'));
     if (can('skipDose')) out.push(h('button', { class: 'btn btn-sm', type: 'button', onclick: () => skipDose(d) }, 'Skip'));
   }
   if (d.status === 'taken') {
@@ -121,8 +121,8 @@ function proofCard(d) {
       h('small', {}, `${timeAgo(d.proof.at)}`),
       can('verifyProof')
         ? h('div', { class: 'med-actions' },
-          h('button', { class: 'btn btn-sm btn-primary', type: 'button', onclick: () => verify(d, true) }, '✅ Looks right'),
-          h('button', { class: 'btn btn-sm', type: 'button', onclick: () => verify(d, false) }, '⚠️ Not right'))
+          h('button', { class: 'btn btn-sm btn-primary', type: 'button', onclick: busy(() => verify(d, true)) }, '✅ Looks right'),
+          h('button', { class: 'btn btn-sm', type: 'button', onclick: busy(() => verify(d, false)) }, '⚠️ Not right'))
         : h('span', { class: 'chip chip-blue' }, 'Waiting for family to check')));
 }
 
@@ -134,15 +134,21 @@ function skipDose(d) {
 
 async function renderOverview() {
   const [today, stats, activity] = await Promise.all([api('/api/today'), api('/api/stats?days=7'), api('/api/activity')]);
-  const questions = activity.activity.filter((a) => a.ack === 'question');
+  const questions = activity.activity.filter((a) => a.ack === 'question' && !a.answeredAt);
+  const elderPhone = state.me.members.find((m) => m.role === 'elderly')?.phone;
   const missedToday = today.doses.filter((d) => d.status === 'missed');
   const elder = state.me.circle.elderName.split(' ')[0];
 
   const alerts = [
     ...today.doses.filter((d) => d.proof?.status === 'pending').map(proofCard),
-    ...questions.slice(0, 3).map((q) => h('div', { class: 'alert-item lilac' },
-      h('span', {}, `❓ ${elder} has a question about: “${q.detail}”`),
-      state.me.circle.emergencyPhone && h('span', {}, '📞 Give them a call'))),
+    ...questions.slice(0, 5).map((q) => h('div', { class: 'alert-item lilac' },
+      h('span', {}, `❓ ${elder} has a question about: “${q.detail}”`, h('small', { class: 'alert-when' }, ` · ${timeAgo(q.ackAt || q.at)}`)),
+      h('div', { class: 'row-actions' },
+        elderPhone && h('a', { class: 'btn btn-sm', href: `tel:${elderPhone}` }, `📞 Call ${elder}`),
+        can('settings') && h('button', {
+          class: 'btn btn-sm btn-primary', type: 'button',
+          onclick: busy(() => act(api(`/api/activity/${encodeURIComponent(q.id)}/answer`, { method: 'POST', body: {} }), `${elder} will see that you answered 💚`)),
+        }, '✅ Answered')))),
     today.mood?.mood === 'unwell' && h('div', { class: 'alert-item rose' }, h('span', {}, `😟 ${elder} said they are not feeling well today (${timeAgo(today.mood.at)}).`)),
     ...missedToday.map((d) => h('div', { class: 'alert-item rose' },
       h('span', {}, `⚠️ ${d.medicine.name} at ${d.time12} hasn't been confirmed.`),
@@ -204,7 +210,9 @@ function dailyBars(daily) {
 }
 
 function activityItem(a) {
-  const ackLabel = a.ack === 'ok' ? h('span', { class: 'chip chip-green' }, '👍 Seen') : a.ack === 'question' ? h('span', { class: 'chip chip-lilac' }, '❓ Has a question') : null;
+  const ackLabel = a.ack === 'ok' ? h('span', { class: 'chip chip-green' }, '👍 Seen')
+    : a.ack === 'question' && a.answeredAt ? h('span', { class: 'chip chip-green' }, `✅ Answered by ${a.answeredBy}`)
+      : a.ack === 'question' ? h('span', { class: 'chip chip-lilac' }, '❓ Has a question') : null;
   return h('li', {},
     h('span', { class: 'icon', 'aria-hidden': 'true' }, ROLE_ICON[a.actorRole] || '🤖'),
     h('div', {}, h('b', {}, a.detail), h('small', {}, `${a.actorName} · ${timeAgo(a.at)} `), ackLabel));
@@ -553,12 +561,12 @@ async function renderAlerts() {
       h('p', { class: 'info' }, 'Only family and caretakers can see the reminder log.'));
     return;
   }
-  const { notifications, emailEnabled } = await api('/api/notifications');
+  const { notifications, emailEnabled, emailVia } = await api('/api/notifications');
   mount($('panel-alerts'),
     h('div', { class: 'panel-head' }, h('h2', {}, 'Reminders & alerts')),
     pushCard(state.push, async () => { state.push = await pushStatus(); renderAlerts(); }),
     h('p', { class: 'info' }, emailEnabled
-      ? '📧 Emails are being sent. Every reminder is also listed here.'
+      ? (emailVia === 'gmail-api' ? '📧 Emails are sent through the Gmail API. Every reminder is also listed here.' : '📧 Emails are being sent. Every reminder is also listed here.')
       : '📧 Email sending isn\'t set up on this server, so reminders are listed here instead of being sent.'),
     h('p', { class: 'muted' }, 'How it works: a reminder 10 min before each dose → a gentle second reminder 30 min after → family is emailed if it is still not taken after 1 hour.'),
     notifications.length
@@ -567,7 +575,9 @@ async function renderAlerts() {
         h('div', {},
           h('b', {}, n.subject),
           h('small', {}, `${timeAgo(n.at)} · to ${n.to.length ? n.to.join(', ') : 'nobody'} · `),
-          h('span', { class: `chip ${n.delivered ? 'chip-green' : 'chip-amber'}` }, n.delivered ? 'Sent' : (n.error || 'Not sent')),
+          n.sending
+            ? h('span', { class: 'chip chip-blue' }, 'Sending…')
+            : h('span', { class: `chip ${n.delivered ? 'chip-green' : 'chip-amber'}` }, n.delivered ? 'Sent' : (n.error || 'Not sent')),
           h('p', { class: 'muted' }, n.preview)))))
       : h('div', { class: 'card empty' }, '🔕 No reminders yet.'));
 }
@@ -661,9 +671,9 @@ async function renderReports() {
         h('div', { class: 'report-lines' }, weekly.lines.map((l) => h('p', {}, l))),
         can('settings') && h('p', {}, h('button', {
           class: 'btn btn-primary', type: 'button',
-          onclick: () => act(api('/api/reports/weekly/send', { method: 'POST', body: {} }).then((r) => {
-            if (!r.notification.delivered) toast(`Saved to Alerts (${r.notification.error})`);
-          }), 'Weekly summary sent 📧'),
+          onclick: busy(() => act(api('/api/reports/weekly/send', { method: 'POST', body: {} }).then((r) => {
+            if (r.notification.error) toast(`Saved to Alerts (${r.notification.error})`);
+          }), 'Sending the weekly summary 📧 – see the Alerts tab')),
         }, `📧 Email it now to ${weekly.recipients.length} people`))),
       h('section', { class: 'card' },
         h('h3', { class: 'section-title' }, '🩺 For the doctor'),

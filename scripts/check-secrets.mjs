@@ -28,7 +28,9 @@ const PATTERNS = [
   ['Private key', /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/],
   ['Service-account key', /"private_key_id"\s*:\s*"[0-9a-f]{20,}"/],
   ['GitHub token', /gh[pousr]_[0-9A-Za-z]{30,}/],
-  ['Filled-in secret variable', /^[ \t]*(?:SMTP_PASS|GEMINI_API_KEY|CRON_SECRET|VAPID_PRIVATE_KEY)[ \t]*=[ \t]*[^\s#]/m],
+  ['Google OAuth refresh token', /1\/\/0[0-9A-Za-z_-]{40,}/],
+  ['Google OAuth client secret', /GOCSPX-[0-9A-Za-z_-]{20,}/],
+  ['Filled-in secret variable', /^[ \t]*(?:SMTP_PASS|GEMINI_API_KEY|CRON_SECRET|VAPID_PRIVATE_KEY|GMAIL_CLIENT_SECRET|GMAIL_REFRESH_TOKEN)[ \t]*=[ \t]*[^\s#]/m],
 ];
 
 const problems = [];

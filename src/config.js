@@ -57,6 +57,14 @@ export const config = Object.freeze({
     subject: env.VAPID_SUBJECT || 'mailto:samimeds@example.com',
   },
 
+  /** Gmail API over HTTPS – works where SMTP ports are blocked (e.g. Render free plan). */
+  gmail: {
+    clientId: env.GMAIL_CLIENT_ID || '',
+    clientSecret: env.GMAIL_CLIENT_SECRET || '',
+    refreshToken: env.GMAIL_REFRESH_TOKEN || '',
+    from: env.MAIL_FROM || env.GMAIL_SENDER || 'SamiMeds <me>',
+  },
+
   smtp: {
     host: env.SMTP_HOST || '',
     port: Number(env.SMTP_PORT) || 465,

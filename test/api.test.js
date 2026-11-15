@@ -301,3 +301,63 @@ test('prescription scan needs Gemini and validates the image', async () => {
   assert.equal((await fam('/api/ai/scan-prescription', { method: 'POST', body: { dataUrl: 'nope' } })).status, 400);
   assert.equal((await fam('/api/ai/scan-prescription', { method: 'POST', body: { dataUrl: PNG } })).status, 503);
 });
+
+/* ---------- "I have a question": instant, one alert, answerable ---------- */
+
+test('question: replies at once even when email is slow, sends one alert, family can answer', async () => {
+  const { setEmailSender } = await import('../src/services/email.js');
+  const delivered = [];
+  // Simulate a host that blocks SMTP: every send hangs for a long time.
+  setEmailSender((m) => new Promise((resolve) => setTimeout(() => { delivered.push(m); resolve(); }, 3000)));
+  try {
+    const fam = await login(DEMO.pins.family);
+    const elder = await login(DEMO.pins.elderly);
+    await fam('/api/members/m_demo_family', { method: 'PUT', body: { email: 'chirag@example.com' } });
+    await fam('/api/medicines', { method: 'POST', body: { name: 'Folic Acid', times: ['23:30'] } });
+    const update = (await elder('/api/today')).data.updates.find((u) => u.detail.includes('Folic Acid'));
+
+    const started = Date.now();
+    const first = await elder(`/api/activity/${update.id}/ack`, { method: 'POST', body: { response: 'question' } });
+    assert.ok(Date.now() - started < 1500, 'the elder gets an answer without waiting for email');
+    assert.equal(first.data.ack, 'question');
+
+    // tapping again (or on a second phone) sends nothing more
+    for (let i = 0; i < 4; i += 1) {
+      const again = await elder(`/api/activity/${update.id}/ack`, { method: 'POST', body: { response: 'question' } });
+      assert.equal(again.data.already, true);
+    }
+    const alerts = (await fam('/api/notifications')).data.notifications.filter((n) => n.kind === 'elder-question' && n.preview.includes('Folic Acid'));
+    assert.equal(alerts.length, 1);
+    assert.equal(alerts[0].sending, true);
+
+    // the elder keeps seeing the question until the family answers
+    let today = (await elder('/api/today')).data;
+    assert.ok(today.openQuestions.some((q) => q.id === update.id));
+
+    assert.equal((await elder(`/api/activity/${update.id}/answer`, { method: 'POST', body: {} })).status, 403);
+    assert.equal((await fam(`/api/activity/${update.id}/answer`, { method: 'POST', body: {} })).status, 200);
+    today = (await elder('/api/today')).data;
+    assert.ok(!today.openQuestions.some((q) => q.id === update.id));
+    assert.ok(today.answered.some((a) => a.id === update.id && a.answeredBy === 'Chirag'));
+
+    // background delivery finishes and the log is updated
+    await new Promise((r) => setTimeout(r, 3300));
+    const done = (await fam('/api/notifications')).data.notifications.find((n) => n.id === alerts[0].id);
+    assert.equal(done.sending, false);
+    assert.equal(done.delivered, true);
+    assert.equal(delivered.length, 1);
+  } finally {
+    setEmailSender(null);
+  }
+});
+
+test('"Not well" tapped again within an hour alerts the family only once', async () => {
+  const elder = await login(DEMO.pins.elderly);
+  const fam = await login(DEMO.pins.family);
+  const count = async () => (await fam('/api/notifications')).data.notifications.filter((n) => n.kind === 'mood-unwell').length;
+  const before = await count();
+  await elder('/api/moods', { method: 'POST', body: { mood: 'unwell' } });
+  await elder('/api/moods', { method: 'POST', body: { mood: 'unwell' } });
+  await elder('/api/moods', { method: 'POST', body: { mood: 'unwell' } });
+  assert.ok((await count()) - before <= 1);
+});

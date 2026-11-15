@@ -156,3 +156,4 @@ tbody tr:last-child td { border-bottom: 0; }
 .scan-row { grid-template-columns: auto minmax(0, 1fr); }
 .scan-row .row-actions { grid-column: 1 / -1; justify-content: flex-start; }
 .scan-icon { font-size: 1.6rem; }
+.alert-when { font-weight: 600; opacity: 0.8; }
