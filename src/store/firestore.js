@@ -4,6 +4,10 @@
  * Elsewhere (e.g. Render) it uses GOOGLE_SERVICE_ACCOUNT_JSON or GOOGLE_APPLICATION_CREDENTIALS.
  */
 
+import { matches } from './memory.js';
+
+const FAILED_PRECONDITION = 9; // Firestore's code for "this query needs an index"
+
 /** Parses a service-account key given as raw JSON or base64-encoded JSON. */
 export function parseServiceAccount(value) {
   if (!value) return null;
@@ -19,6 +23,7 @@ export class FirestoreStore {
   constructor(db, prefix = '') {
     this.db = db;
     this.prefix = prefix;
+    this.warned = new Set();
   }
 
   static async create(prefix, serviceAccountJson = '') {
@@ -55,10 +60,31 @@ export class FirestoreStore {
     await this.ref(name).doc(id).delete();
   }
 
-  async query(name, filters = []) {
+  async run(name, filters) {
     let q = this.ref(name);
     for (const [field, op, value] of filters) q = q.where(field, op, value);
     const snap = await q.get();
     return snap.docs.map((d) => d.data());
+  }
+
+  /**
+   * Runs the query on Firestore. If a composite index is missing, it still works:
+   * the equality filters run on Firestore and the rest are applied here.
+   * Create the indexes in firestore.indexes.json to make these queries fully indexed.
+   */
+  async query(name, filters = []) {
+    try {
+      return await this.run(name, filters);
+    } catch (err) {
+      if (err?.code !== FAILED_PRECONDITION) throw err;
+      if (!this.warned.has(name)) {
+        this.warned.add(name);
+        console.warn(`[firestore] Missing index for "${this.prefix}${name}" – using a slower fallback. ${err.message}`);
+      }
+      const equal = filters.filter(([, op]) => op === '==');
+      const rest = filters.filter(([, op]) => op !== '==');
+      const docs = await this.run(name, equal);
+      return docs.filter((doc) => rest.every((f) => matches(doc, f)));
+    }
   }
 }

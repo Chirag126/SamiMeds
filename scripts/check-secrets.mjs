@@ -19,7 +19,7 @@ const files = (all ? git('ls-files') : git('diff', '--cached', '--name-only', '-
 /** Files that must never be committed at all. */
 const FORBIDDEN_FILE = [
   /(^|\/)\.env$/, /(^|\/)\.env\.(?!example$)[^/]+$/, /\.pem$/, /\.p12$/, /\.key$/,
-  /service-account.*\.json$/, /(^|\/)credentials\.json$/,
+  /service-account.*\.json$/, /firebase-adminsdk.*\.json$/, /(^|\/)credentials\.json$/,
 ];
 
 /** Content that looks like a real secret. */
