@@ -14,15 +14,20 @@ const ROLE_NAME = { elderly: 'Elder', family: 'Family', caretaker: 'Caretaker' }
 async function boot() {
   registerServiceWorker();
   state.me = await api('/api/me');
-  const { circle, member } = state.me;
-  $('circle-title').textContent = `${circle.elderName}'s care circle`;
-  $('circle-sub').textContent = `${member.name} · ${ROLE_NAME[member.role]} · Circle code ${circle.code}`;
+  renderHeader();
   $('logout').addEventListener('click', logout);
 
-  setupTabs($('tablist'), { onChange: (t) => { state.tab = t; load(t); } });
+  const tabs = setupTabs($('tablist'), { onChange: (t) => { state.tab = t; load(t); } });
+  window.addEventListener('hashchange', () => { if (location.hash.slice(1) !== state.tab) tabs.select(location.hash.slice(1)); });
   setupMedicineDialog();
   setupVisitDialog();
   setInterval(() => { if (!document.hidden && state.tab === 'overview') load('overview'); }, 60_000);
+}
+
+function renderHeader() {
+  const { circle, member } = state.me;
+  $('circle-title').textContent = `${circle.elderName}'s care circle`;
+  $('circle-sub').textContent = `${member.name} · ${ROLE_NAME[member.role]} · Circle code ${circle.code}`;
 }
 
 async function logout() {
@@ -523,6 +528,7 @@ async function submitForm(e, fn, message) {
     toast(message);
     form.reset();
     state.me = await api('/api/me');
+    renderHeader();
     reload();
   } catch (ex) {
     err.textContent = ex.message;

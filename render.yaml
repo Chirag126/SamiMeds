@@ -36,6 +36,12 @@ services:
         sync: false
       - key: MAIL_FROM
         sync: false
+      - key: DEMO_ELDER_EMAIL
+        sync: false
+      - key: DEMO_FAMILY_EMAIL
+        sync: false
+      - key: DEMO_FAMILY_PHONE
+        sync: false
       # Optional: Firestore so data survives restarts (service-account JSON, raw or base64)
       - key: GOOGLE_SERVICE_ACCOUNT_JSON
         sync: false
